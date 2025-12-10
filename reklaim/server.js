@@ -206,12 +206,32 @@ app.post('/api/simulate-return', async (req, res) => {
             return_id: `test_${Date.now()}`,
             order_id: `ord_${Date.now()}`,
             customer_id: 'cust_demo',
+
+            // Add customer object if your workflow expects it
+            customer: {
+                id: 'cust_demo',
+                name: 'Test Customer',
+                email: 'test@example.com'
+            },
+
+            // Add order object if needed
+            order: {
+                id: `ord_${Date.now()}`,
+                total: 1299
+            },
+
+            // Add product object if needed
+            product: {
+                id: 'prod_123',
+                name: 'Test Product'
+            },
+
             amount: 1299,
             reason_text: scenario === 'fraud' ? 'Wrong color' : 'Size too small',
             scenario,
             images: scenario === 'fraud'
-                ? ['https://i.imgur.com/stained.jpg']
-                : ['https://images.unsplash.com/photo-1581655353564-df123a1eb820']
+                ? ['https://images.pexels.com/photos/991509/pexels-photo-991509.jpeg']
+                : ['https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg']
         };
 
         // Fetch config for this company
@@ -236,6 +256,9 @@ app.post('/api/simulate-return', async (req, res) => {
         };
 
         // Forward directly to Boltic
+        console.log('🔵 Sending to Boltic:', bolticUrl);
+        console.log('📦 Payload:', JSON.stringify(enrichedPayload, null, 2));
+
         try {
             const bolticResponse = await axios.post(bolticUrl, enrichedPayload, {
                 headers: { 'Content-Type': 'application/json' },
@@ -251,14 +274,21 @@ app.post('/api/simulate-return', async (req, res) => {
                 boltic_status: bolticResponse.status
             });
         } catch (bolticError) {
+            // Log detailed error information for debugging
+            console.error('❌ Boltic Error Details:');
+            console.error('   Status:', bolticError.response?.status);
+            console.error('   Status Text:', bolticError.response?.statusText);
+            console.error('   Error Message:', bolticError.message);
+            console.error('   Response Data:', JSON.stringify(bolticError.response?.data, null, 2));
+
             // If Boltic returns an error, still report success but include the error
-            console.warn('⚠️ Boltic responded with error:', bolticError.message);
             res.json({
-                success: true,
+                success: false,
                 message: `Test sent to Boltic but received error response`,
                 payload: mockPayload,
                 boltic_error: bolticError.response?.status || bolticError.message,
-                note: 'Check your Boltic workflow URL and ensure it is active'
+                boltic_error_details: bolticError.response?.data,
+                note: 'Check server logs for full error details. Common issues: workflow expects different payload format, workflow is disabled, or authentication required.'
             });
         }
     } catch (err) {

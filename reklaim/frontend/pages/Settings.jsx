@@ -49,7 +49,14 @@ const Settings = () => {
                     alert(`✅ ${scenario.toUpperCase()} test triggered successfully!\n\nCheck your Boltic dashboard for execution.\n\nStatus: ${data.boltic_status || 'OK'}`);
                 }
             } else {
-                alert(`❌ ${data.error || 'Test failed'}`);
+                // Show detailed error information
+                let errorMsg = `❌ ${data.message || 'Test failed'}\n\n`;
+                errorMsg += `Error: ${data.boltic_error}\n\n`;
+                if (data.boltic_error_details) {
+                    errorMsg += `Details: ${JSON.stringify(data.boltic_error_details, null, 2)}\n\n`;
+                }
+                errorMsg += `${data.note}`;
+                alert(errorMsg);
             }
         } catch (err) {
             const errorMsg = err.response?.data?.error || err.message;
