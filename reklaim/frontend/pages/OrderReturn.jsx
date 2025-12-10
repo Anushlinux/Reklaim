@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './style/order_return.css';
 
-// Mock product data for demo
-const MOCK_PRODUCT = {
+// Default product data fallback
+const DEFAULT_PRODUCT = {
     id: 'prod_demo_001',
     name: 'Premium Cotton Classic Fit Shirt',
     variant: 'Size: L • Color: Navy Blue',
@@ -24,16 +24,40 @@ const RETURN_REASONS = [
 ];
 
 const OrderReturn = () => {
-    const { company_id } = useParams();
+    const { company_id, product_id } = useParams();
+    const location = useLocation();
+    const navigate = useNavigate();
+    const fileInputRef = useRef(null);
+
     const [selectedReason, setSelectedReason] = useState('');
     const [comments, setComments] = useState('');
     const [loading, setLoading] = useState(false);
     const [submitted, setSubmitted] = useState(false);
     const [response, setResponse] = useState(null);
+    const [uploadedImages, setUploadedImages] = useState([]);
+    const [isDragging, setIsDragging] = useState(false);
 
     // Developer mode state (hidden from regular users)
     const [devMode, setDevMode] = useState(false);
     const [scenario, setScenario] = useState('clean');
+
+    // Get product from navigation state or use default
+    const productFromState = location.state?.product;
+    const product = productFromState ? {
+        id: productFromState.id,
+        name: productFromState.name,
+        variant: productFromState.brand ? `Brand: ${productFromState.brand}` : '',
+        price: 0, // Will be shown if available
+        image: productFromState.image,
+        orderId: `ORD-${Date.now().toString().slice(-8)}`,
+        orderDate: new Date().toLocaleDateString('en-US', {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric'
+        }),
+        category: productFromState.category,
+        itemCode: productFromState.itemCode
+    } : DEFAULT_PRODUCT;
 
     // Keyboard shortcut to toggle dev mode (Shift+D)
     useEffect(() => {
@@ -46,6 +70,72 @@ const OrderReturn = () => {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
+    // Image upload handling
+    const handleImageUpload = (files) => {
+        const validFiles = Array.from(files).filter(file => {
+            const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+            const maxSize = 10 * 1024 * 1024; // 10MB
+            return validTypes.includes(file.type) && file.size <= maxSize;
+        });
+
+        if (uploadedImages.length + validFiles.length > 5) {
+            alert('You can upload a maximum of 5 images');
+            return;
+        }
+
+        const newImages = validFiles.map(file => ({
+            id: `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            file,
+            preview: URL.createObjectURL(file),
+            name: file.name
+        }));
+
+        setUploadedImages(prev => [...prev, ...newImages]);
+    };
+
+    const handleFileInputChange = (e) => {
+        if (e.target.files) {
+            handleImageUpload(e.target.files);
+        }
+    };
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        setIsDragging(false);
+        if (e.dataTransfer.files) {
+            handleImageUpload(e.dataTransfer.files);
+        }
+    };
+
+    const removeImage = (imageId) => {
+        setUploadedImages(prev => {
+            const updated = prev.filter(img => img.id !== imageId);
+            // Revoke URL of removed image to free memory
+            const removed = prev.find(img => img.id === imageId);
+            if (removed) {
+                URL.revokeObjectURL(removed.preview);
+            }
+            return updated;
+        });
+    };
+
+    // Cleanup URLs on unmount
+    useEffect(() => {
+        return () => {
+            uploadedImages.forEach(img => URL.revokeObjectURL(img.preview));
+        };
+    }, []);
+
     const handleSubmit = async () => {
         if (!selectedReason) return;
 
@@ -54,8 +144,10 @@ const OrderReturn = () => {
             const { data } = await axios.post('/api/simulate-return', {
                 scenario,
                 company_id,
+                product_id: product.id,
                 reason: selectedReason,
-                comments
+                comments,
+                imageCount: uploadedImages.length
             });
 
             setResponse(data);
@@ -77,6 +169,11 @@ const OrderReturn = () => {
         setResponse(null);
         setSelectedReason('');
         setComments('');
+        setUploadedImages([]);
+    };
+
+    const handleGoBack = () => {
+        navigate(-1);
     };
 
     if (submitted) {
@@ -102,15 +199,28 @@ const OrderReturn = () => {
                                 <span className="detail-value">{response?.payload?.return_id}</span>
                             </div>
                             <div className="detail-row">
+                                <span className="detail-label">Product</span>
+                                <span className="detail-value">{product.name}</span>
+                            </div>
+                            <div className="detail-row">
+                                <span className="detail-label">Images Attached</span>
+                                <span className="detail-value">{uploadedImages.length}</span>
+                            </div>
+                            <div className="detail-row">
                                 <span className="detail-label">Status</span>
                                 <span className="detail-value status-badge">Processing</span>
                             </div>
                         </div>
                     )}
 
-                    <button className="btn btn-primary" onClick={handleReset}>
-                        Submit Another Return
-                    </button>
+                    <div className="result-actions">
+                        <button className="btn btn-secondary" onClick={handleGoBack}>
+                            Back to Products
+                        </button>
+                        <button className="btn btn-primary" onClick={handleReset}>
+                            Submit Another Return
+                        </button>
+                    </div>
                 </div>
             </div>
         );
@@ -121,26 +231,34 @@ const OrderReturn = () => {
             {/* Header */}
             <header className="return-header">
                 <div className="header-content">
+                    <button className="back-button" onClick={handleGoBack}>
+                        ← Back
+                    </button>
                     <h1>Request a Return</h1>
                     <p>We're sorry to see this item go. Let us know what happened.</p>
                 </div>
                 <div className="order-badge">
-                    Order #{MOCK_PRODUCT.orderId}
+                    Order #{product.orderId}
                 </div>
             </header>
 
             {/* Product Card */}
             <section className="product-card">
                 <img
-                    src={MOCK_PRODUCT.image}
-                    alt={MOCK_PRODUCT.name}
+                    src={product.image}
+                    alt={product.name}
                     className="product-image"
                 />
                 <div className="product-info">
-                    <h3 className="product-name">{MOCK_PRODUCT.name}</h3>
-                    <p className="product-variant">{MOCK_PRODUCT.variant}</p>
-                    <p className="product-price">₹{MOCK_PRODUCT.price.toLocaleString()}</p>
-                    <span className="order-date">Ordered on {MOCK_PRODUCT.orderDate}</span>
+                    <h3 className="product-name">{product.name}</h3>
+                    {product.variant && <p className="product-variant">{product.variant}</p>}
+                    {product.category && (
+                        <span className="product-category-tag">{product.category}</span>
+                    )}
+                    {product.price > 0 && (
+                        <p className="product-price">₹{product.price.toLocaleString()}</p>
+                    )}
+                    <span className="order-date">Ordered on {product.orderDate}</span>
                 </div>
             </section>
 
@@ -183,6 +301,69 @@ const OrderReturn = () => {
                 </div>
             </section>
 
+            {/* Image Upload Section */}
+            <section className="form-section">
+                <h2 className="section-title">
+                    <span className="step-number">3</span>
+                    Attach Photos <span className="optional">(Optional)</span>
+                </h2>
+                <p className="section-subtitle">
+                    Upload photos showing the issue with your product. Maximum 5 images.
+                </p>
+
+                {/* Drop Zone */}
+                <div
+                    className={`upload-zone ${isDragging ? 'dragging' : ''}`}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                >
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        multiple
+                        onChange={handleFileInputChange}
+                        className="file-input-hidden"
+                    />
+                    <div className="upload-icon">📸</div>
+                    <div className="upload-text">
+                        <span className="upload-primary">
+                            {isDragging ? 'Drop images here' : 'Click to upload or drag and drop'}
+                        </span>
+                        <span className="upload-secondary">
+                            JPG, PNG or WebP (Max 10MB each)
+                        </span>
+                    </div>
+                </div>
+
+                {/* Image Previews */}
+                {uploadedImages.length > 0 && (
+                    <div className="image-previews">
+                        {uploadedImages.map((img) => (
+                            <div key={img.id} className="preview-item">
+                                <img src={img.preview} alt={img.name} className="preview-image" />
+                                <button
+                                    className="preview-remove"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        removeImage(img.id);
+                                    }}
+                                    aria-label="Remove image"
+                                >
+                                    ×
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {uploadedImages.length > 0 && (
+                    <p className="upload-count">{uploadedImages.length} of 5 images uploaded</p>
+                )}
+            </section>
+
             {/* Developer Mode Toggle (Hidden) */}
             {devMode && (
                 <section className="dev-mode-panel">
@@ -207,7 +388,7 @@ const OrderReturn = () => {
 
             {/* Submit Actions */}
             <section className="actions-section">
-                <button className="btn btn-secondary">
+                <button className="btn btn-secondary" onClick={handleGoBack}>
                     Cancel
                 </button>
                 <button

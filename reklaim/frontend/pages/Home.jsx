@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import "./style/home.css";
-import greenDot from "../assets/green-dot.svg";
-import grayDot from "../assets/grey-dot.svg";
 import DEFAULT_NO_IMAGE from "../assets/default_icon_listing.png";
 import loaderGif from "../assets/loader.gif";
 import axios from "axios";
@@ -13,10 +11,8 @@ const EXAMPLE_MAIN_URL = window.location.origin;
 export const Home = () => {
   const [pageLoading, setPageLoading] = useState(false);
   const [productList, setProductList] = useState([]);
-  const DOC_URL_PATH = "/help/docs/sdk/latest/platform/company/catalog/#getProducts";
-  const DOC_APP_URL_PATH = "/help/docs/sdk/latest/platform/application/catalog#getAppProducts";
   const { application_id, company_id } = useParams();
-  const documentationUrl = 'https://api.fynd.com'
+  const navigate = useNavigate();
 
   useEffect(() => {
     isApplicationLaunch() ? fetchApplicationProducts() : fetchProducts();
@@ -25,7 +21,7 @@ export const Home = () => {
   const fetchProducts = async () => {
     setPageLoading(true);
     try {
-      const { data } = await axios.get(urlJoin(EXAMPLE_MAIN_URL, '/api/products'), {
+      const { data } = await axios.get(urlJoin(EXAMPLE_MAIN_URL, '/api/public/products'), {
         headers: {
           "x-company-id": company_id,
         }
@@ -41,7 +37,7 @@ export const Home = () => {
   const fetchApplicationProducts = async () => {
     setPageLoading(true);
     try {
-      const { data } = await axios.get(urlJoin(EXAMPLE_MAIN_URL, `/api/products/application/${application_id}`), {
+      const { data } = await axios.get(urlJoin(EXAMPLE_MAIN_URL, `/api/public/products/application/${application_id}`), {
         headers: {
           "x-company-id": company_id,
         }
@@ -54,7 +50,6 @@ export const Home = () => {
     }
   };
 
-
   const productProfileImage = (media) => {
     if (!media || !media.length) {
       return DEFAULT_NO_IMAGE;
@@ -63,77 +58,134 @@ export const Home = () => {
     return profileImg?.url || DEFAULT_NO_IMAGE;
   };
 
-  const getDocumentPageLink = () => {
-    return documentationUrl
-      .replace("api", "partners")
-      .concat(isApplicationLaunch() ? DOC_APP_URL_PATH : DOC_URL_PATH);
+  const isApplicationLaunch = () => !!application_id;
+
+  const handleProductClick = (product) => {
+    const basePath = isApplicationLaunch()
+      ? `/company/${company_id}/application/${application_id}/returns/${product.id}`
+      : `/company/${company_id}/returns/${product.id}`;
+
+    navigate(basePath, {
+      state: {
+        product: {
+          id: product.id,
+          name: product.name,
+          brand: product.brand?.name,
+          image: productProfileImage(product.media),
+          category: product.category_slug,
+          itemCode: product.item_code,
+          isActive: product.is_active
+        }
+      }
+    });
   };
 
-  const isApplicationLaunch = () => !!application_id;
+  const formatPrice = (product) => {
+    // Try to get price from product data, fallback to a reasonable default
+    if (product.price?.effective) {
+      return `₹${product.price.effective.toLocaleString()}`;
+    }
+    if (product.price?.min) {
+      return `₹${product.price.min.toLocaleString()}`;
+    }
+    return null;
+  };
 
   return (
     <>
       {pageLoading ? (
-        <div className="loader" data-testid="loader">
+        <div className="home-loader" data-testid="loader">
           <img src={loaderGif} alt="loader GIF" />
+          <span className="loader-text">Loading products...</span>
         </div>
       ) : (
-        <div className="products-container">
-          <div className="title">
-            This is an example extension home page user interface.
-          </div>
-
-          <div className="section">
-            <div className="heading">
-              <span>Example {isApplicationLaunch() ? 'Application API' : 'Platform API'}</span> :
-              <a href={getDocumentPageLink()} target="_blank" rel="noopener noreferrer">
-                {isApplicationLaunch() ? 'getAppProducts' : 'getProducts'}
-              </a>
+        <div className="home-container">
+          {/* Header */}
+          <header className="home-header">
+            <div className="header-content">
+              <h1>Your Products</h1>
+              <p>Select a product to initiate a return request</p>
             </div>
-            <div className="description">
-              This is an illustrative Platform API call to fetch the list of products
-              in this company. Check your extension folder’s 'server.js'
-              file to know how to call Platform API and start calling API you
-              require.
+            <div className="product-count-badge">
+              {productList.length} {productList.length === 1 ? 'Product' : 'Products'}
             </div>
-          </div>
+          </header>
 
-          <div>
-            {productList.map((product, index) => (
-              <div className="product-list-container flex-row" key={`product-${product.name}-${index}`}>
-                <img className="mr-r-12" src={product.is_active ? greenDot : grayDot} alt="status" />
-                <div className="card-avatar mr-r-12">
-                  <img src={productProfileImage(product.media)} alt={product.name} />
-                </div>
-                <div className="flex-column">
-                  <div className="flex-row">
-                    <div className="product-name" data-testid={`product-name-${product.id}`}>
+          {/* Product Grid */}
+          {productList.length > 0 ? (
+            <div className="products-grid">
+              {productList.map((product, index) => (
+                <div
+                  key={`product-${product.id || index}`}
+                  className="product-card"
+                  onClick={() => handleProductClick(product)}
+                  data-testid={`product-card-${product.id}`}
+                >
+                  {/* Status Badge */}
+                  <div className={`status-indicator ${product.is_active ? 'active' : 'inactive'}`}>
+                    {product.is_active ? 'Active' : 'Inactive'}
+                  </div>
+
+                  {/* Product Image */}
+                  <div className="product-image-container">
+                    <img
+                      src={productProfileImage(product.media)}
+                      alt={product.name}
+                      className="product-image"
+                    />
+                  </div>
+
+                  {/* Product Details */}
+                  <div className="product-details">
+                    <h3 className="product-name" data-testid={`product-name-${product.id}`}>
                       {product.name}
-                    </div>
-                    <div className="product-item-code">|</div>
-                    {product.item_code && (
-                      <span className="product-item-code">
-                        Item Code:
-                        <span className="cl-RoyalBlue" data-testid={`product-item-code-${product.id}`}>
-                          {product.item_code}
+                    </h3>
+
+                    {product.brand && (
+                      <p className="product-brand" data-testid={`product-brand-${product.id}`}>
+                        {product.brand.name}
+                      </p>
+                    )}
+
+                    <div className="product-meta">
+                      {product.category_slug && (
+                        <span className="category-badge" data-testid={`product-category-${product.id}`}>
+                          {product.category_slug}
                         </span>
-                      </span>
+                      )}
+                    </div>
+
+                    {formatPrice(product) && (
+                      <p className="product-price">{formatPrice(product)}</p>
+                    )}
+
+                    {product.item_code && (
+                      <p className="product-item-code" data-testid={`product-item-code-${product.id}`}>
+                        Item Code: <span>{product.item_code}</span>
+                      </p>
                     )}
                   </div>
-                  {product.brand && (
-                    <div className="product-brand-name" data-testid={`product-brand-name-${product.id}`}>
-                      {product.brand.name}
-                    </div>
-                  )}
-                  {product.category_slug && (
-                    <div className="product-category" data-testid={`product-category-slug-${product.id}`}>
-                      Category: <span>{product.category_slug}</span>
-                    </div>
-                  )}
+
+                  {/* Action Hint */}
+                  <div className="card-action-hint">
+                    <span className="action-icon">↗</span>
+                    Request Return
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">
+              <div className="empty-icon">📦</div>
+              <h3>No Products Found</h3>
+              <p>There are no products available at the moment.</p>
+            </div>
+          )}
+
+          {/* Footer */}
+          <footer className="home-footer">
+            <p>Click on any product to initiate a return request</p>
+          </footer>
         </div>
       )}
     </>
