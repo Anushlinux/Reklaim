@@ -3,6 +3,7 @@ import App from "./App";
 import NotFound from "./pages/NotFound";
 
 import Settings from "./pages/Settings";
+import OrderReturn from "./pages/OrderReturn";
 
 const router = createBrowserRouter([
   {
@@ -18,8 +19,16 @@ const router = createBrowserRouter([
     element: <Settings />
   },
   {
+    path: '/company/:company_id/returns',
+    element: <OrderReturn />
+  },
+  {
     path: '/company/:company_id/application/:application_id/settings',
     element: <Settings />
+  },
+  {
+    path: '/company/:company_id/application/:application_id/returns',
+    element: <OrderReturn />
   },
   {
     path: "/company/:company_id/application/:application_id",
@@ -32,3 +41,4 @@ const router = createBrowserRouter([
 ]);
 
 export default router;
+
