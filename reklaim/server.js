@@ -1,4 +1,5 @@
 const express = require('express');
+const axios = require('axios');
 const cookieParser = require('cookie-parser');
 const bodyParser = require('body-parser');
 const path = require("path");
@@ -9,6 +10,10 @@ const { setupFdk } = require("@gofynd/fdk-extension-javascript/express");
 const { SQLiteStorage } = require("@gofynd/fdk-extension-javascript/express/storage");
 const sqliteInstance = new sqlite3.Database('session_storage.db');
 const productRouter = express.Router();
+
+// Create storage instance for config management
+const configStorage = new SQLiteStorage(sqliteInstance, "exapmple-fynd-platform-extension");
+
 
 
 const fdkExtension = setupFdk({
@@ -24,20 +29,20 @@ const fdkExtension = setupFdk({
             else
                 return `${req.extension.base_url}/company/${req.query['company_id']}`;
         },
-        
+
         uninstall: async (req) => {
             // Write your code here to cleanup data related to extension
             // If task is time taking then process it async on other process.
         }
     },
-    storage: new SQLiteStorage(sqliteInstance,"exapmple-fynd-platform-extension"), // add your prefix
-    access_mode: "online",
+    storage: new SQLiteStorage(sqliteInstance, "exapmple-fynd-platform-extension"), // add your prefix
+    access_mode: "offline",
     webhook_config: {
         api_path: "/api/webhook-events",
         notification_email: "useremail@example.com",
         event_map: {
             "company/product/delete": {
-                "handler": (eventName) => {  console.log(eventName)},
+                "handler": (eventName) => { console.log(eventName) },
                 "version": '1'
             }
         }
@@ -45,9 +50,9 @@ const fdkExtension = setupFdk({
 });
 
 const STATIC_PATH = process.env.NODE_ENV === 'production'
-    ? path.join(process.cwd(), 'frontend', 'public' , 'dist')
+    ? path.join(process.cwd(), 'frontend', 'public', 'dist')
     : path.join(process.cwd(), 'frontend');
-    
+
 const app = express();
 const platformApiRoutes = fdkExtension.platformApiRoutes;
 
@@ -66,16 +71,60 @@ app.use(serveStatic(STATIC_PATH, { index: false }));
 app.use("/", fdkExtension.fdkHandler);
 
 // Route to handle webhook events and process it.
-app.post('/api/webhook-events', async function(req, res) {
+app.post('/api/webhook-events', async function (req, res) {
     try {
-      console.log(`Webhook Event: ${req.body.event} received`)
-      await fdkExtension.webhookRegistry.processWebhook(req);
-      return res.status(200).json({"success": true});
-    } catch(err) {
-      console.log(`Error Processing ${req.body.event} Webhook`);
-      return res.status(500).json({"success": false});
+        const eventName = req.body.event || req.body.event_name;
+        console.log(`Webhook Event: ${eventName} received from company ${req.body.company_id}`);
+
+        // Process standard FDK events
+        await fdkExtension.webhookRegistry.processWebhook(req);
+
+        // Boltic forwarding for returns
+        if (eventName === 'return.requested') {
+            const companyId = req.body.company_id;
+
+            try {
+                // Fetch stored config
+                const configKey = `boltic_config_${companyId}`;
+                const configData = await configStorage.get(configKey);
+                const config = configData ? JSON.parse(configData) : {};
+                const bolticUrl = config.boltic_url || process.env.BOLTIC_URL;
+
+                if (!bolticUrl) {
+                    console.warn('No Boltic URL configured for company', companyId);
+                    return res.status(200).json({ success: true, warning: 'No Boltic URL' });
+                }
+
+                // Get platform access token
+                const accessToken = await fdkExtension.getAccessToken(companyId);
+
+                // Build enriched payload
+                const payload = {
+                    ...req.body,
+                    merchant_rules: config.rules || { auto_approve_threshold: 500, enable_ai: true },
+                    access_token: accessToken,
+                    timestamp: new Date().toISOString()
+                };
+
+                // Forward to Boltic
+                const bolticResponse = await axios.post(bolticUrl, payload, {
+                    headers: { 'Content-Type': 'application/json' },
+                    timeout: 10000
+                });
+
+                console.log('✅ Forwarded to Boltic:', payload.return_id, '| Status:', bolticResponse.status);
+            } catch (bolticError) {
+                console.error('❌ Boltic forward failed:', bolticError.message);
+                // Don't fail webhook - log and continue
+            }
+        }
+
+        return res.status(200).json({ success: true });
+    } catch (err) {
+        console.error('Webhook processing error:', err);
+        return res.status(500).json({ success: false, error: err.message });
     }
-})
+});
 
 productRouter.get('/', async function view(req, res, next) {
     try {
@@ -108,14 +157,124 @@ platformApiRoutes.use('/products', productRouter);
 
 // If you are adding routes outside of the /api path, 
 // remember to also add a proxy rule for them in /frontend/vite.config.js
+// Configuration endpoints for Returns Guardian
+app.post('/api/config/:company_id', async (req, res) => {
+    try {
+        const { company_id } = req.params;
+        const { boltic_url, rules } = req.body;
+
+        const configKey = `boltic_config_${company_id}`;
+        await configStorage.set(
+            configKey,
+            JSON.stringify({ boltic_url, rules, updated_at: new Date().toISOString() })
+        );
+
+        console.log('Config saved for company', company_id);
+        return res.json({ success: true, message: 'Configuration saved' });
+    } catch (err) {
+        console.error('Config save error:', err);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+app.get('/api/config/:company_id', async (req, res) => {
+    try {
+        const { company_id } = req.params;
+        const configKey = `boltic_config_${company_id}`;
+        const configData = await configStorage.get(configKey);
+
+        if (configData) {
+            const config = JSON.parse(configData);
+            return res.json(config);
+        } else {
+            return res.json({ boltic_url: '', rules: { auto_approve_threshold: 500 } });
+        }
+    } catch (err) {
+        console.error('Config fetch error:', err);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Demo/Test endpoint to simulate return webhook
+app.post('/api/simulate-return', async (req, res) => {
+    try {
+        const { scenario = 'random', company_id = '1' } = req.body;
+
+        const mockPayload = {
+            event: 'return.requested',
+            company_id,
+            return_id: `test_${Date.now()}`,
+            order_id: `ord_${Date.now()}`,
+            customer_id: 'cust_demo',
+            amount: 1299,
+            reason_text: scenario === 'fraud' ? 'Wrong color' : 'Size too small',
+            scenario,
+            images: scenario === 'fraud'
+                ? ['https://i.imgur.com/stained.jpg']
+                : ['https://images.unsplash.com/photo-1581655353564-df123a1eb820']
+        };
+
+        // Fetch config for this company
+        const configKey = `boltic_config_${company_id}`;
+        const configData = await configStorage.get(configKey);
+        const config = configData ? JSON.parse(configData) : {};
+        const bolticUrl = config.boltic_url || process.env.BOLTIC_URL;
+
+        // Check if URL is properly configured (not empty or placeholder)
+        if (!bolticUrl || bolticUrl.includes('YOUR_WORKFLOW_ID') || bolticUrl.trim() === '') {
+            return res.status(400).json({
+                success: false,
+                error: 'No Boltic URL configured. Please configure a valid Boltic workflow URL in Settings first.'
+            });
+        }
+
+        // Build enriched payload with merchant rules
+        const enrichedPayload = {
+            ...mockPayload,
+            merchant_rules: config.rules || { auto_approve_threshold: 500, enable_ai: true },
+            timestamp: new Date().toISOString()
+        };
+
+        // Forward directly to Boltic
+        try {
+            const bolticResponse = await axios.post(bolticUrl, enrichedPayload, {
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 10000
+            });
+
+            console.log('✅ Test webhook sent to Boltic:', mockPayload.return_id, '| Status:', bolticResponse.status);
+
+            res.json({
+                success: true,
+                message: `Test ${scenario} case sent to Boltic successfully`,
+                payload: mockPayload,
+                boltic_status: bolticResponse.status
+            });
+        } catch (bolticError) {
+            // If Boltic returns an error, still report success but include the error
+            console.warn('⚠️ Boltic responded with error:', bolticError.message);
+            res.json({
+                success: true,
+                message: `Test sent to Boltic but received error response`,
+                payload: mockPayload,
+                boltic_error: bolticError.response?.status || bolticError.message,
+                note: 'Check your Boltic workflow URL and ensure it is active'
+            });
+        }
+    } catch (err) {
+        console.error('Simulate return error:', err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 app.use('/api', platformApiRoutes);
 
 // Serve the React app for all other routes
 app.get('*', (req, res) => {
     return res
-    .status(200)
-    .set("Content-Type", "text/html")
-    .send(readFileSync(path.join(STATIC_PATH, "index.html")));
+        .status(200)
+        .set("Content-Type", "text/html")
+        .send(readFileSync(path.join(STATIC_PATH, "index.html")));
 });
 
 module.exports = app;

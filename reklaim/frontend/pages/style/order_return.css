@@ -1,0 +1,261 @@
+/* Order Return Page Styles */
+
+.order-return-container {
+    max-width: 800px;
+    margin: 40px auto;
+    padding: 0 24px;
+    font-family: 'Inter', sans-serif;
+    color: #1a1a1a;
+}
+
+.order-header {
+    margin-bottom: 32px;
+}
+
+.order-header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin: 0 0 8px 0;
+    letter-spacing: -0.02em;
+}
+
+.order-header p {
+    color: #666;
+    font-size: 14px;
+    margin: 0;
+}
+
+/* Product Card */
+.product-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    display: flex;
+    gap: 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    border: 1px solid #eaeaea;
+    margin-bottom: 32px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.product-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.product-image {
+    width: 100px;
+    height: 100px;
+    border-radius: 8px;
+    object-fit: cover;
+    background-color: #f5f5f5;
+}
+
+.product-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.product-name {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 6px 0;
+}
+
+.product-variant {
+    font-size: 14px;
+    color: #666;
+    margin: 0 0 12px 0;
+}
+
+.product-price {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1a1a1a;
+}
+
+/* Form Section */
+.form-section {
+    background: #fff;
+    border-radius: 12px;
+    padding: 32px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    border: 1px solid #eaeaea;
+}
+
+.section-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 24px 0;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #eee;
+}
+
+/* Reason Grid */
+.reasons-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.reason-card {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 8px;
+    color: #555;
+    background: #fff;
+}
+
+.reason-card .icon {
+    font-size: 24px;
+    margin-bottom: 4px;
+}
+
+.reason-card:hover {
+    border-color: #000;
+    background-color: #fafafa;
+}
+
+.reason-card.selected {
+    border-color: #000;
+    background-color: #f0f7ff;
+    color: #000;
+    box-shadow: 0 0 0 1px #000;
+}
+
+/* Text Area */
+.comment-section {
+    margin-bottom: 32px;
+}
+
+.comment-label {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: #333;
+}
+
+.comment-textarea {
+    width: 100%;
+    height: 120px;
+    padding: 12px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    resize: vertical;
+    transition: border-color 0.2s;
+    background: #fafafa;
+}
+
+.comment-textarea:focus {
+    outline: none;
+    border-color: #000;
+    background: #fff;
+}
+
+/* Action Buttons */
+.actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 16px;
+    margin-top: 32px;
+}
+
+.btn {
+    padding: 12px 24px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+}
+
+.btn-secondary {
+    background: transparent;
+    color: #666;
+    border: 1px solid #e0e0e0;
+}
+
+.btn-secondary:hover {
+    background: #f5f5f5;
+    color: #333;
+}
+
+.btn-primary {
+    background: #000;
+    color: #fff;
+}
+
+.btn-primary:hover {
+    background: #333;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.btn-primary:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Success State */
+.success-container {
+    text-align: center;
+    padding: 60px 24px;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.success-icon {
+    font-size: 48px;
+    margin-bottom: 24px;
+    display: block;
+}
+
+.success-title {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0 0 12px 0;
+    color: #000;
+}
+
+.success-message {
+    color: #666;
+    margin-bottom: 32px;
+    line-height: 1.5;
+}
+
+@media (max-width: 600px) {
+    .order-return-container {
+        padding: 0 16px;
+        margin: 24px auto;
+    }
+    
+    .product-card {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+    
+    .actions {
+        flex-direction: column-reverse; /* Put main action on top optionally, or just stack */
+    }
+    
+    .btn {
+        width: 100%;
+    }
+}

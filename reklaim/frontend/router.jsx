@@ -2,6 +2,8 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import App from "./App";
 import NotFound from "./pages/NotFound";
 
+import Settings from "./pages/Settings";
+
 const router = createBrowserRouter([
   {
     path: "/",
@@ -10,6 +12,14 @@ const router = createBrowserRouter([
   {
     path: "/company/:company_id/",
     element: <App />,
+  },
+  {
+    path: '/company/:company_id/settings',
+    element: <Settings />
+  },
+  {
+    path: '/company/:company_id/application/:application_id/settings',
+    element: <Settings />
   },
   {
     path: "/company/:company_id/application/:application_id",

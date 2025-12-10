@@ -47,9 +47,9 @@ export default defineConfig({
     port: process.env.FRONTEND_PORT || 5173,
     proxy: {
       "^/(\\?.*)?$": proxyOptions,
-      "^/api(/|(\\?.*)?$)": proxyOptions,
-      "^/fp(/|(\\?.*)?$)": proxyOptions,
-      "^/adm(/|(\\?.*)?$)": proxyOptions,
+      "^/api": proxyOptions,
+      "^/fp": proxyOptions,
+      "^/adm": proxyOptions,
     },
   },
 });
