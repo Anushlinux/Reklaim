@@ -325,20 +325,38 @@ app.get('/api/public/products/application/:application_id', async (req, res) => 
 // Returns Intelligence Dashboard - Fetch data from Boltic workflow
 app.get('/api/returns', async (req, res) => {
     try {
-        const bolticWorkflowUrl = 'https://asia-south1.workflow.boltic.app/28172f97-4539-4efb-8b90-c59095908073';
-        
+        const bolticWorkflowUrl = 'https://asia-south1.workflow.boltic.app/fc2e653e-295d-41a9-a2c7-d9b3dfbdb55f';
+
         console.log('📊 Fetching returns intelligence data from Boltic...');
-        
+
         const response = await axios.get(bolticWorkflowUrl, {
-            timeout: 15000,
+            timeout: 50000, // 50 seconds to accommodate 30-40s API response time
             headers: { 'Accept': 'application/json' }
         });
 
-        if (response.data && response.data.response_body) {
-            const { judgments = [], summary = {} } = response.data.response_body;
-            
+        console.log('✅ Boltic API response received');
+
+        // API returns: { data: [{id, created_at, updated_at, output: {judgments: [...], summary: {...}}}], pagination: {...} }
+        if (response.data && response.data.data && Array.isArray(response.data.data)) {
+            // Extract all judgments from all data items
+            let allJudgments = [];
+            let latestSummary = {};
+
+            response.data.data.forEach(item => {
+                if (item.output) {
+                    if (item.output.judgments && Array.isArray(item.output.judgments)) {
+                        allJudgments = allJudgments.concat(item.output.judgments);
+                    }
+                    if (item.output.summary) {
+                        latestSummary = item.output.summary;
+                    }
+                }
+            });
+
+            console.log(`📋 Found ${allJudgments.length} judgments from ${response.data.data.length} records`);
+
             // Transform judgments to dashboard format
-            const returns = judgments.map((judgment, index) => ({
+            const returns = allJudgments.map((judgment, index) => ({
                 id: judgment.shipment_id || `return-${index}`,
                 user_id: judgment.user_id || 'anonymous',
                 user_name: judgment.user_id === 'undefined' || !judgment.user_id ? 'Anonymous User' : `User ${judgment.user_id}`,
@@ -366,15 +384,15 @@ app.get('/api/returns', async (req, res) => {
 
             // Calculate summary statistics
             const dashboardSummary = {
-                analyzed_returns: summary.total_analyzed || judgments.length,
+                analyzed_returns: latestSummary.total_analyzed || allJudgments.length,
                 total_value: returns.reduce((sum, r) => sum + r.refund_amount, 0),
-                avg_return_rate: Math.round((summary.reject_count / summary.total_analyzed) * 100) || 0,
-                avg_fraud_score: summary.avg_fraud_score || 0,
-                exclusive_cod_users: returns.filter(r => 
+                avg_return_rate: latestSummary.total_analyzed ? Math.round((latestSummary.reject_count / latestSummary.total_analyzed) * 100) : 0,
+                avg_fraud_score: latestSummary.avg_fraud_score || 0,
+                exclusive_cod_users: returns.filter(r =>
                     r.pattern_flags.includes('exclusive_cod_user')
                 ).length,
                 high_risk_count: returns.filter(r => r.flag_count >= 3).length,
-                reject_count: summary.reject_count || 0
+                reject_count: latestSummary.reject_count || 0
             };
 
             return res.json({
@@ -385,6 +403,7 @@ app.get('/api/returns', async (req, res) => {
         }
 
         // Fallback if response structure is unexpected
+        console.warn('⚠️ Unexpected API response structure:', JSON.stringify(response.data).substring(0, 200));
         return res.json({
             success: true,
             summary: {
@@ -399,7 +418,7 @@ app.get('/api/returns', async (req, res) => {
 
     } catch (err) {
         console.error('❌ Returns dashboard fetch error:', err.message);
-        
+
         // Return empty data instead of error to keep UI functional
         return res.json({
             success: true,

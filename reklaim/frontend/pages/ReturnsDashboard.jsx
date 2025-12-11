@@ -36,14 +36,20 @@ export const ReturnsDashboard = () => {
   const fetchReturnsData = async () => {
     setLoading(true);
     try {
-      const { data } = await axios.get(urlJoin(EXAMPLE_MAIN_URL, '/api/returns'));
+      const { data } = await axios.get(urlJoin(EXAMPLE_MAIN_URL, '/api/returns'), {
+        timeout: 50000 // 50 seconds to accommodate 30-40s API response time
+      });
       if (data.success) {
         setSummary(data.summary);
         setReturns(data.returns);
         setFilteredReturns(data.returns);
       }
     } catch (e) {
-      console.error("Error fetching returns data:", e);
+      console.error("Returns dashboard fetch error:", e.message || e);
+      // Show user-friendly error message without breaking the UI
+      if (e.code === 'ECONNABORTED' || e.message?.includes('timeout')) {
+        console.warn("Request timed out. The API is taking longer than expected.");
+      }
     } finally {
       setLoading(false);
     }

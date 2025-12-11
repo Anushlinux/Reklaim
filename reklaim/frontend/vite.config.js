@@ -8,6 +8,8 @@ const proxyOptions = {
   changeOrigin: false,
   secure: true,
   ws: false,
+  timeout: 60000, // 60 seconds to accommodate slow API responses
+  proxyTimeout: 60000,
 };
 
 const host = process.env.HOST
