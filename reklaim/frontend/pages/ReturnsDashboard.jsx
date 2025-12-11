@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import "./style/returns-dashboard.css";
+import "./style/map-widget.css";
 import axios from "axios";
 import urlJoin from "url-join";
+import MapWidget from "../components/MapWidget";
 
 const EXAMPLE_MAIN_URL = window.location.origin;
 
@@ -235,6 +237,7 @@ export const ReturnsDashboard = () => {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
   const [metadata, setMetadata] = useState(null);
+  const [showMapWidget, setShowMapWidget] = useState(false);
 
   const { application_id, company_id } = useParams();
   const navigate = useNavigate();
@@ -358,6 +361,14 @@ export const ReturnsDashboard = () => {
         </div>
 
         <div className="header-right">
+          <button 
+            className="btn btn-primary" 
+            onClick={() => setShowMapWidget(true)} 
+            type="button"
+            style={{ marginRight: '12px' }}
+          >
+            🗺️ Risk Map
+          </button>
           <button className="btn btn-secondary" onClick={navigateToHome} type="button">
             <Icon name="home" />
             Home
@@ -751,6 +762,12 @@ export const ReturnsDashboard = () => {
           )}
         </div>
       </section>
+
+      {/* Map Widget Modal */}
+      <MapWidget 
+        isOpen={showMapWidget} 
+        onClose={() => setShowMapWidget(false)} 
+      />
     </div>
   );
 };
