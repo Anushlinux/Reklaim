@@ -234,6 +234,7 @@ export const ReturnsDashboard = () => {
   const [expandedRow, setExpandedRow] = useState(null);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
+  const [metadata, setMetadata] = useState(null);
 
   const { application_id, company_id } = useParams();
   const navigate = useNavigate();
@@ -254,6 +255,9 @@ export const ReturnsDashboard = () => {
         setReturns(data.returns);
         setFilteredReturns(data.returns);
         setLastUpdatedAt(new Date());
+        if (data.metadata) {
+          setMetadata(data.metadata);
+        }
       }
     } catch (e) {
       console.error("Returns dashboard fetch error:", e.message || e);
@@ -346,6 +350,9 @@ export const ReturnsDashboard = () => {
             <div className="updated-at">
               Updated{" "}
               {lastUpdatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              {metadata && metadata.record_id && (
+                <> • Record: {metadata.record_id.substring(0, 8)}... • Total records: {metadata.total_records || 'N/A'}</>
+              )}
             </div>
           ) : null}
         </div>
@@ -612,13 +619,12 @@ export const ReturnsDashboard = () => {
                                     <div className="analysis-item">
                                       <span className="label">Fraud score</span>
                                       <span
-                                        className={`value score-badge ${
-                                          item.fraud_score >= 7
-                                            ? "score-high"
-                                            : item.fraud_score >= 5
-                                              ? "score-medium"
-                                              : "score-low"
-                                        }`}
+                                        className={`value score-badge ${item.fraud_score >= 7
+                                          ? "score-high"
+                                          : item.fraud_score >= 5
+                                            ? "score-medium"
+                                            : "score-low"
+                                          }`}
                                       >
                                         {item.fraud_score}/10
                                       </span>
@@ -632,9 +638,8 @@ export const ReturnsDashboard = () => {
                                     <div className="analysis-item">
                                       <span className="label">Segment</span>
                                       <span
-                                        className={`value segment-badge segment-${
-                                          item.segment?.toLowerCase?.() || "gray"
-                                        }`}
+                                        className={`value segment-badge segment-${item.segment?.toLowerCase?.() || "gray"
+                                          }`}
                                       >
                                         {item.segment || "—"}
                                       </span>
@@ -711,9 +716,8 @@ export const ReturnsDashboard = () => {
                                         <span className="breakdown-bar">
                                           <span
                                             style={{
-                                              width: `${
-                                                (item.weighted_breakdown.behavioral_score / 3.5) * 100
-                                              }%`
+                                              width: `${(item.weighted_breakdown.behavioral_score / 3.5) * 100
+                                                }%`
                                             }}
                                           />
                                         </span>
@@ -724,9 +728,8 @@ export const ReturnsDashboard = () => {
                                         <span className="breakdown-bar">
                                           <span
                                             style={{
-                                              width: `${
-                                                (item.weighted_breakdown.history_score / 3.5) * 100
-                                              }%`
+                                              width: `${(item.weighted_breakdown.history_score / 3.5) * 100
+                                                }%`
                                             }}
                                           />
                                         </span>

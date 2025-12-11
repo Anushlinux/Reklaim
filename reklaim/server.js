@@ -336,38 +336,45 @@ app.get('/api/returns', async (req, res) => {
 
         console.log('✅ Boltic API response received');
 
-        // API returns: { data: [{id, created_at, updated_at, output: {judgments: [...], summary: {...}}}], pagination: {...} }
-        if (response.data && response.data.data && Array.isArray(response.data.data)) {
-            // Extract all judgments from all data items
-            let allJudgments = [];
-            let latestSummary = {};
+        // API returns structure: { latest_data: { judgments: [...], summary: {...} }, metadata: {...} }
+        let allJudgments = [];
+        let latestSummary = {};
+        let metadata = {};
 
-            response.data.data.forEach(item => {
-                if (item.output) {
-                    if (item.output.judgments && Array.isArray(item.output.judgments)) {
-                        allJudgments = allJudgments.concat(item.output.judgments);
-                    }
-                    if (item.output.summary) {
-                        latestSummary = item.output.summary;
-                    }
-                }
-            });
+        // Handle direct API response structure (latest_data at root level)
+        if (response.data && response.data.latest_data) {
+            const latestData = response.data.latest_data;
 
-            console.log(`📋 Found ${allJudgments.length} judgments from ${response.data.data.length} records`);
+            if (latestData.judgments && Array.isArray(latestData.judgments)) {
+                allJudgments = latestData.judgments;
+            }
+
+            if (latestData.summary) {
+                latestSummary = latestData.summary;
+            }
+
+            if (response.data.metadata) {
+                metadata = response.data.metadata;
+            }
+
+            console.log(`📋 Found ${allJudgments.length} judgments from latest data (record: ${metadata.record_id || 'N/A'})`);
 
             // Transform judgments to dashboard format
             const returns = allJudgments.map((judgment, index) => ({
                 id: judgment.shipment_id || `return-${index}`,
+                order_id: judgment.order_id,
                 user_id: judgment.user_id || 'anonymous',
-                user_name: judgment.user_id === 'undefined' || !judgment.user_id ? 'Anonymous User' : `User ${judgment.user_id}`,
-                user_mobile: judgment.user_id === 'undefined' || !judgment.user_id ? 'N/A' : '+91 XXXXXXXXXX',
+                user_name: judgment.user_name || (judgment.user_id === 'undefined' || !judgment.user_id ? 'Anonymous User' : `User ${judgment.user_id}`),
+                user_email: judgment.user_email || 'N/A',
+                user_mobile: judgment.user_mobile || 'N/A',
                 shipment_id: judgment.shipment_id,
                 item_name: 'Fashion Item', // Would come from order details in real scenario
                 refund_amount: Math.floor(Math.random() * 2000) + 500, // Mock amount
                 payment_mode: 'COD',
                 is_cod: judgment.key_flags?.includes('high_cod_dependency') || judgment.key_flags?.includes('exclusive_cod_user'),
-                delivery_city: judgment.segment === 'NON-PRIME' ? 'Mumbai' : 'Rewari',
-                delivery_pincode: judgment.explanation?.match(/\d{6}/)?.[0] || '400001',
+                delivery_city: judgment.delivery_state || 'Unknown',
+                delivery_pincode: judgment.delivery_pincode || '400001',
+                delivery_state: judgment.delivery_state,
                 reason_text: judgment.explanation || 'Return requested',
                 segment: judgment.segment,
                 fraud_score: judgment.fraud_score,
@@ -392,14 +399,81 @@ app.get('/api/returns', async (req, res) => {
                     r.pattern_flags.includes('exclusive_cod_user')
                 ).length,
                 high_risk_count: returns.filter(r => r.flag_count >= 3).length,
-                reject_count: latestSummary.reject_count || 0
+                reject_count: latestSummary.reject_count || 0,
+                approve_count: latestSummary.approve_count || 0,
+                review_count: latestSummary.review_count || 0
             };
 
             return res.json({
                 success: true,
                 summary: dashboardSummary,
-                returns: returns
+                returns: returns,
+                metadata: metadata
             });
+        } else {
+            // Fallback: Try old API structure for backward compatibility
+            if (response.data && response.data.data && Array.isArray(response.data.data)) {
+                response.data.data.forEach(item => {
+                    if (item.output) {
+                        if (item.output.judgments && Array.isArray(item.output.judgments)) {
+                            allJudgments = allJudgments.concat(item.output.judgments);
+                        }
+                        if (item.output.summary) {
+                            latestSummary = item.output.summary;
+                        }
+                    }
+                });
+
+                console.log(`📋 Found ${allJudgments.length} judgments from ${response.data.data.length} records (old format)`);
+
+                // Transform and return using old format
+                const returns = allJudgments.map((judgment, index) => ({
+                    id: judgment.shipment_id || `return-${index}`,
+                    order_id: judgment.order_id,
+                    user_id: judgment.user_id || 'anonymous',
+                    user_name: judgment.user_name || (judgment.user_id === 'undefined' || !judgment.user_id ? 'Anonymous User' : `User ${judgment.user_id}`),
+                    user_email: judgment.user_email || 'N/A',
+                    user_mobile: judgment.user_mobile || 'N/A',
+                    shipment_id: judgment.shipment_id,
+                    item_name: 'Fashion Item',
+                    refund_amount: Math.floor(Math.random() * 2000) + 500,
+                    payment_mode: 'COD',
+                    is_cod: judgment.key_flags?.includes('high_cod_dependency') || judgment.key_flags?.includes('exclusive_cod_user'),
+                    delivery_city: judgment.delivery_state || 'Unknown',
+                    delivery_pincode: judgment.delivery_pincode || '400001',
+                    delivery_state: judgment.delivery_state,
+                    reason_text: judgment.explanation || 'Return requested',
+                    segment: judgment.segment,
+                    fraud_score: judgment.fraud_score,
+                    decision: judgment.decision,
+                    confidence: judgment.confidence,
+                    pattern_flags: judgment.key_flags || [],
+                    flag_count: judgment.key_flags?.length || 0,
+                    incentive: judgment.incentive,
+                    recommended_action: judgment.recommended_action,
+                    reasoning: judgment.reasoning,
+                    weighted_breakdown: judgment.weighted_breakdown,
+                    prime_score: judgment.prime_score
+                }));
+
+                const dashboardSummary = {
+                    analyzed_returns: latestSummary.total_analyzed || allJudgments.length,
+                    total_value: returns.reduce((sum, r) => sum + r.refund_amount, 0),
+                    avg_return_rate: latestSummary.total_analyzed ? Math.round((latestSummary.reject_count / latestSummary.total_analyzed) * 100) : 0,
+                    avg_fraud_score: latestSummary.avg_fraud_score || 0,
+                    exclusive_cod_users: returns.filter(r => r.pattern_flags.includes('exclusive_cod_user')).length,
+                    high_risk_count: returns.filter(r => r.flag_count >= 3).length,
+                    reject_count: latestSummary.reject_count || 0,
+                    approve_count: latestSummary.approve_count || 0,
+                    review_count: latestSummary.review_count || 0
+                };
+
+                return res.json({
+                    success: true,
+                    summary: dashboardSummary,
+                    returns: returns
+                });
+            }
         }
 
         // Fallback if response structure is unexpected
