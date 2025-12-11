@@ -1,0 +1,290 @@
+/* Map Widget Styles */
+.map-widget-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.map-widget-container {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  width: 95vw;
+  height: 90vh;
+  max-width: 1200px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.map-widget-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.map-widget-title h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.map-widget-title p {
+  margin: 4px 0 0 0;
+  font-size: 14px;
+  color: #64748b;
+}
+
+.map-widget-stats {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.stat-item {
+  text-align: center;
+}
+
+.stat-value {
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+  color: #dc2626;
+}
+
+.stat-label {
+  display: block;
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.map-widget-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: #64748b;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.map-widget-close:hover {
+  background: #f1f5f9;
+  color: #374151;
+}
+
+.map-widget-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.map-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #f3f4f6;
+  border-top: 3px solid #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.map-container {
+  flex: 1;
+  position: relative;
+}
+
+.leaflet-container {
+  font-family: inherit;
+}
+
+/* Custom Risk Markers */
+.custom-risk-marker {
+  background: none;
+  border: none;
+}
+
+/* Risk Popup Styles */
+.risk-popup {
+  font-family: inherit;
+  min-width: 200px;
+}
+
+.risk-popup h4 {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.state-name {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.risk-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.risk-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.risk-item .label {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.risk-item .value {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.risk-item .value.risk-high {
+  color: #dc2626;
+}
+
+.risk-item .value.risk-medium {
+  color: #f59e0b;
+}
+
+.risk-item .value.risk-low {
+  color: #10b981;
+}
+
+/* Map Legend */
+.map-widget-legend {
+  padding: 16px 24px;
+  border-top: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.map-widget-legend h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.legend-items {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-marker {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.legend-marker.high {
+  background-color: #dc2626;
+}
+
+.legend-marker.medium {
+  background-color: #f59e0b;
+}
+
+.legend-marker.low {
+  background-color: #10b981;
+}
+
+.legend-item span {
+  font-size: 13px;
+  color: #64748b;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .map-widget-overlay {
+    padding: 10px;
+  }
+  
+  .map-widget-container {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+  }
+  
+  .map-widget-header {
+    padding: 16px;
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  
+  .map-widget-stats {
+    gap: 16px;
+  }
+  
+  .map-widget-legend {
+    padding: 12px 16px;
+  }
+  
+  .legend-items {
+    gap: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .map-widget-title h2 {
+    font-size: 18px;
+  }
+  
+  .map-widget-title p {
+    font-size: 13px;
+  }
+  
+  .stat-value {
+    font-size: 16px;
+  }
+  
+  .legend-items {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
