@@ -4,6 +4,7 @@ import NotFound from "./pages/NotFound";
 
 import Settings from "./pages/Settings";
 import OrderReturn from "./pages/OrderReturn";
+import ReturnsDashboard from "./pages/ReturnsDashboard";
 
 const router = createBrowserRouter([
   {
@@ -19,6 +20,10 @@ const router = createBrowserRouter([
     element: <Settings />
   },
   {
+    path: '/company/:company_id/dashboard',
+    element: <ReturnsDashboard />
+  },
+  {
     path: '/company/:company_id/returns',
     element: <OrderReturn />
   },
@@ -29,6 +34,10 @@ const router = createBrowserRouter([
   {
     path: '/company/:company_id/application/:application_id/settings',
     element: <Settings />
+  },
+  {
+    path: '/company/:company_id/application/:application_id/dashboard',
+    element: <ReturnsDashboard />
   },
   {
     path: '/company/:company_id/application/:application_id/returns',

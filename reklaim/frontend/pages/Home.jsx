@@ -91,6 +91,20 @@ export const Home = () => {
     return null;
   };
 
+  const navigateToDashboard = () => {
+    const basePath = application_id
+      ? `/company/${company_id}/application/${application_id}/dashboard`
+      : `/company/${company_id}/dashboard`;
+    navigate(basePath);
+  };
+
+  const navigateToSettings = () => {
+    const basePath = application_id
+      ? `/company/${company_id}/application/${application_id}/settings`
+      : `/company/${company_id}/settings`;
+    navigate(basePath);
+  };
+
   return (
     <>
       {pageLoading ? (
@@ -106,8 +120,16 @@ export const Home = () => {
               <h1>Your Products</h1>
               <p>Select a product to initiate a return request</p>
             </div>
-            <div className="product-count-badge">
-              {productList.length} {productList.length === 1 ? 'Product' : 'Products'}
+            <div className="header-actions">
+              <button className="nav-action-button dashboard-button" onClick={navigateToDashboard}>
+                📊 Dashboard
+              </button>
+              <button className="nav-action-button" onClick={navigateToSettings}>
+                ⚙️ Settings
+              </button>
+              <div className="product-count-badge">
+                {productList.length} {productList.length === 1 ? 'Product' : 'Products'}
+              </div>
             </div>
           </header>
 
