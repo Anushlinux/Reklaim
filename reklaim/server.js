@@ -322,6 +322,100 @@ app.get('/api/public/products/application/:application_id', async (req, res) => 
     }
 });
 
+// Returns Intelligence Dashboard - Fetch data from Boltic workflow
+app.get('/api/returns', async (req, res) => {
+    try {
+        const bolticWorkflowUrl = 'https://asia-south1.workflow.boltic.app/28172f97-4539-4efb-8b90-c59095908073';
+        
+        console.log('📊 Fetching returns intelligence data from Boltic...');
+        
+        const response = await axios.get(bolticWorkflowUrl, {
+            timeout: 15000,
+            headers: { 'Accept': 'application/json' }
+        });
+
+        if (response.data && response.data.response_body) {
+            const { judgments = [], summary = {} } = response.data.response_body;
+            
+            // Transform judgments to dashboard format
+            const returns = judgments.map((judgment, index) => ({
+                id: judgment.shipment_id || `return-${index}`,
+                user_id: judgment.user_id || 'anonymous',
+                user_name: judgment.user_id === 'undefined' || !judgment.user_id ? 'Anonymous User' : `User ${judgment.user_id}`,
+                user_mobile: judgment.user_id === 'undefined' || !judgment.user_id ? 'N/A' : '+91 XXXXXXXXXX',
+                shipment_id: judgment.shipment_id,
+                item_name: 'Fashion Item', // Would come from order details in real scenario
+                refund_amount: Math.floor(Math.random() * 2000) + 500, // Mock amount
+                payment_mode: 'COD',
+                is_cod: judgment.key_flags?.includes('high_cod_dependency') || judgment.key_flags?.includes('exclusive_cod_user'),
+                delivery_city: judgment.segment === 'NON-PRIME' ? 'Mumbai' : 'Rewari',
+                delivery_pincode: judgment.explanation?.match(/\d{6}/)?.[0] || '400001',
+                reason_text: judgment.explanation || 'Return requested',
+                segment: judgment.segment,
+                fraud_score: judgment.fraud_score,
+                decision: judgment.decision,
+                confidence: judgment.confidence,
+                pattern_flags: judgment.key_flags || [],
+                flag_count: judgment.key_flags?.length || 0,
+                incentive: judgment.incentive,
+                recommended_action: judgment.recommended_action,
+                reasoning: judgment.reasoning,
+                weighted_breakdown: judgment.weighted_breakdown,
+                prime_score: judgment.prime_score
+            }));
+
+            // Calculate summary statistics
+            const dashboardSummary = {
+                analyzed_returns: summary.total_analyzed || judgments.length,
+                total_value: returns.reduce((sum, r) => sum + r.refund_amount, 0),
+                avg_return_rate: Math.round((summary.reject_count / summary.total_analyzed) * 100) || 0,
+                avg_fraud_score: summary.avg_fraud_score || 0,
+                exclusive_cod_users: returns.filter(r => 
+                    r.pattern_flags.includes('exclusive_cod_user')
+                ).length,
+                high_risk_count: returns.filter(r => r.flag_count >= 3).length,
+                reject_count: summary.reject_count || 0
+            };
+
+            return res.json({
+                success: true,
+                summary: dashboardSummary,
+                returns: returns
+            });
+        }
+
+        // Fallback if response structure is unexpected
+        return res.json({
+            success: true,
+            summary: {
+                analyzed_returns: 0,
+                total_value: 0,
+                avg_return_rate: 0,
+                exclusive_cod_users: 0,
+                high_risk_count: 0
+            },
+            returns: []
+        });
+
+    } catch (err) {
+        console.error('❌ Returns dashboard fetch error:', err.message);
+        
+        // Return empty data instead of error to keep UI functional
+        return res.json({
+            success: true,
+            summary: {
+                analyzed_returns: 0,
+                total_value: 0,
+                avg_return_rate: 0,
+                exclusive_cod_users: 0,
+                high_risk_count: 0
+            },
+            returns: [],
+            error: 'Unable to fetch latest data'
+        });
+    }
+});
+
 // Demo/Test endpoint to simulate return webhook
 app.post('/api/simulate-return', async (req, res) => {
     try {

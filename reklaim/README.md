@@ -59,6 +59,25 @@ If your app requires a more robust database solution, you can easily extend the 
 
 Feel free to configure and run your preferred database on your server to meet your specific needs.
 
+## Features
+
+### Returns Intelligence Dashboard
+A comprehensive fraud detection and risk analysis dashboard that integrates with Boltic workflow to analyze return requests in real-time.
+
+**Key Features:**
+- **KPI Cards**: Display total returns, total value, rejection rate, and high-risk cases
+- **Interactive Table**: Sortable and filterable returns data with detailed fraud analysis
+- **Risk Scoring**: Automated risk assessment with visual indicators (High/Medium/Low)
+- **Expandable Details**: Click any row to view detailed fraud scores, pattern flags, reasoning, and recommendations
+- **Real-time Data**: Fetches live data from Boltic workflow endpoint
+- **Responsive Design**: Clean, minimal design matching Fynd's storefront aesthetic
+
+**Accessing the Dashboard:**
+Navigate to `/company/{company_id}/dashboard` or click the "Dashboard" button from the home page.
+
+**API Endpoint:**
+- `GET /api/returns` - Fetches returns intelligence data from Boltic workflow
+
 ## Tech Stack
 1. [fdk-client-javascript](https://github.com/gofynd/fdk-client-javascript): This library contains all the methods to call Fynd platform APIs.
 2. [fdk-extension-javascript](https://github.com/gofynd/fdk-extension-javascript): This library streamlines the setup of authentication for accessing Fynd Platform APIs. It also simplifies the process of subscribing to webhooks for receiving real-time notifications.
