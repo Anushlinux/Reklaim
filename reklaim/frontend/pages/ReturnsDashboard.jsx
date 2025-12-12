@@ -45,33 +45,6 @@ const Icon = ({ name, className = "", size = 18 }) => {
   };
 
   switch (name) {
-    case "home":
-      return (
-        <svg {...common}>
-          <path
-            d="M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-7a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v7H4a1 1 0 0 1-1-1v-9.5Z"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinejoin="round"
-          />
-        </svg>
-      );
-    case "settings":
-      return (
-        <svg {...common}>
-          <path
-            d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
-            stroke="currentColor"
-            strokeWidth="1.8"
-          />
-          <path
-            d="M19.4 15a7.8 7.8 0 0 0 .1-1 7.8 7.8 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a8.3 8.3 0 0 0-1.7-1l-.4-2.5H10l-.4 2.5c-.6.2-1.2.6-1.7 1l-2.4-1-2 3.5L5.5 13a7.8 7.8 0 0 0-.1 1c0 .3 0 .7.1 1l-2 1.5 2 3.5 2.4-1c.5.4 1.1.8 1.7 1l.4 2.5h4.2l.4-2.5c.6-.2 1.2-.6 1.7-1l2.4 1 2-3.5-2-1.5Z"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinejoin="round"
-          />
-        </svg>
-      );
     case "refresh":
       return (
         <svg {...common}>
@@ -350,19 +323,7 @@ export const ReturnsDashboard = () => {
     setExpandedRow(expandedRow === id ? null : id);
   };
 
-  const navigateToHome = () => {
-    const basePath = application_id
-      ? `/company/${company_id}/application/${application_id}`
-      : `/company/${company_id}`;
-    navigate(basePath);
-  };
 
-  const navigateToSettings = () => {
-    const basePath = application_id
-      ? `/company/${company_id}/application/${application_id}/settings`
-      : `/company/${company_id}/settings`;
-    navigate(basePath);
-  };
 
   const generateReport = useCallback(async () => {
     setReportLoading(true);
@@ -416,14 +377,7 @@ export const ReturnsDashboard = () => {
           >
             🗺️ Risk Map
           </button>
-          <button className="btn btn-secondary" onClick={navigateToHome} type="button">
-            <Icon name="home" />
-            Home
-          </button>
-          <button className="btn btn-secondary" onClick={navigateToSettings} type="button">
-            <Icon name="settings" />
-            Settings
-          </button>
+
         </div>
       </header>
 

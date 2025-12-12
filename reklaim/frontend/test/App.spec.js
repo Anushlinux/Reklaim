@@ -2,15 +2,16 @@ import React from 'react';
 import { render, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/extend-expect';
 import App from '../App';
-import { Home } from '../pages/Home';
 
-jest.mock('../pages/Home', () => ({
-  Home: () => <div data-testid="home-component">Home Component</div>
+jest.mock('../pages/ReturnsDashboard', () => ({
+  __esModule: true,
+  default: () => <div data-testid="dashboard-component">Returns Dashboard Component</div>,
+  ReturnsDashboard: () => <div data-testid="dashboard-component">Returns Dashboard Component</div>
 }));
 
 describe('App Component', () => {
-  test('Renders Home component', () => {
+  test('Renders ReturnsDashboard component', () => {
     const { getByTestId } = render(<App />);
-    expect(getByTestId('home-component')).toBeInTheDocument();
+    expect(getByTestId('dashboard-component')).toBeInTheDocument();
   });
 });

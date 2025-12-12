@@ -1,8 +1,5 @@
 import { createBrowserRouter, Navigate } from "react-router-dom";
-import App from "./App";
 import NotFound from "./pages/NotFound";
-
-import Settings from "./pages/Settings";
 import OrderReturn from "./pages/OrderReturn";
 import ReturnsDashboard from "./pages/ReturnsDashboard";
 
@@ -13,11 +10,7 @@ const router = createBrowserRouter([
   },
   {
     path: "/company/:company_id/",
-    element: <App />,
-  },
-  {
-    path: '/company/:company_id/settings',
-    element: <Settings />
+    element: <ReturnsDashboard />,
   },
   {
     path: '/company/:company_id/dashboard',
@@ -30,10 +23,6 @@ const router = createBrowserRouter([
   {
     path: '/company/:company_id/returns/:product_id',
     element: <OrderReturn />
-  },
-  {
-    path: '/company/:company_id/application/:application_id/settings',
-    element: <Settings />
   },
   {
     path: '/company/:company_id/application/:application_id/dashboard',
@@ -49,7 +38,7 @@ const router = createBrowserRouter([
   },
   {
     path: "/company/:company_id/application/:application_id",
-    element: <App />,
+    element: <ReturnsDashboard />,
   },
   {
     path: "/*", // Fallback route for all unmatched paths
