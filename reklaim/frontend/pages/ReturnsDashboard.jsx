@@ -272,6 +272,27 @@ export const ReturnsDashboard = () => {
     }
   }, []);
 
+  const triggerWorkflow = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Call the Boltic workflow API to start the workflow (fire and forget)
+      axios.get("https://asia-south1.workflow.boltic.app/28172f97-4539-4efb-8b90-c59095908073", {
+        timeout: 50000
+      }).then(() => {
+        console.log("✅ Workflow triggered successfully");
+      }).catch((err) => {
+        console.error("❌ Workflow trigger error:", err.message);
+      });
+
+      // Independently fetch the data from the read API
+      await fetchReturnsData();
+    } catch (e) {
+      console.error("Error:", e.message || e);
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchReturnsData]);
+
   const applyFilters = useCallback(() => {
     let filtered = [...returns];
 
@@ -361,9 +382,9 @@ export const ReturnsDashboard = () => {
         </div>
 
         <div className="header-right">
-          <button 
-            className="btn btn-primary" 
-            onClick={() => setShowMapWidget(true)} 
+          <button
+            className="btn btn-primary"
+            onClick={() => setShowMapWidget(true)}
             type="button"
             style={{ marginRight: '12px' }}
           >
@@ -467,7 +488,7 @@ export const ReturnsDashboard = () => {
           <div className="filters-right">
             <button
               className="btn btn-primary"
-              onClick={fetchReturnsData}
+              onClick={triggerWorkflow}
               disabled={loading}
               type="button"
             >
@@ -764,9 +785,9 @@ export const ReturnsDashboard = () => {
       </section>
 
       {/* Map Widget Modal */}
-      <MapWidget 
-        isOpen={showMapWidget} 
-        onClose={() => setShowMapWidget(false)} 
+      <MapWidget
+        isOpen={showMapWidget}
+        onClose={() => setShowMapWidget(false)}
       />
     </div>
   );

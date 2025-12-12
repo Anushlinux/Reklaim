@@ -334,22 +334,38 @@ app.get('/api/risk-map-data', async (req, res) => {
         });
 
         let allJudgments = [];
-        
-        // Handle direct API response structure
+
+        // Handle API response structure - check both root level and response_body wrapper
+        let latestData = null;
         if (response.data && response.data.latest_data) {
-            const latestData = response.data.latest_data;
-            if (latestData.judgments && Array.isArray(latestData.judgments)) {
-                allJudgments = latestData.judgments;
+            // New structure: latest_data at root level
+            latestData = response.data.latest_data;
+        } else if (response.data && response.data.response_body && response.data.response_body.latest_data) {
+            // Old structure: nested under response_body
+            latestData = response.data.response_body.latest_data;
+        }
+
+        if (latestData) {
+            // Extract judgments - handle multiple API structures
+            if (latestData.judgments && Array.isArray(latestData.judgments) && latestData.judgments.length > 0) {
+                const firstItem = latestData.judgments[0];
+                // Check if judgments contains objects with returns_analysis (old structure)
+                if (firstItem.returns_analysis && Array.isArray(firstItem.returns_analysis)) {
+                    allJudgments = firstItem.returns_analysis;
+                } else if (firstItem.shipment_id) {
+                    // New structure: judgments is directly an array of judgment objects
+                    allJudgments = latestData.judgments;
+                }
             }
         }
 
         // Aggregate risk data by state and pincode
         const locationRiskData = {};
-        
+
         allJudgments.forEach((judgment) => {
             const state = judgment.delivery_state || 'Unknown';
             const pincode = judgment.delivery_pincode || 'Unknown';
-            
+
             if (!locationRiskData[state]) {
                 locationRiskData[state] = {
                     state: state,
@@ -361,7 +377,7 @@ app.get('/api/risk-map-data', async (req, res) => {
                     centerLng: getStateCenterLng(state)
                 };
             }
-            
+
             if (!locationRiskData[state].pincodes[pincode]) {
                 locationRiskData[state].pincodes[pincode] = {
                     pincode: pincode,
@@ -371,11 +387,11 @@ app.get('/api/risk-map-data', async (req, res) => {
                     locations: []
                 };
             }
-            
+
             const pincodeData = locationRiskData[state].pincodes[pincode];
             const flagCount = judgment.key_flags?.length || 0;
             const fraudScore = judgment.fraud_score || 0;
-            
+
             // Add coordinates for pincode location (approximate)
             if (pincode !== 'Unknown' && pincode.length === 6) {
                 const coords = getPincodeCoordinates(pincode);
@@ -387,60 +403,60 @@ app.get('/api/risk-map-data', async (req, res) => {
                     shipmentId: judgment.shipment_id
                 });
             }
-            
+
             pincodeData.returns += 1;
             pincodeData.totalFraudScore += fraudScore;
-            
+
             if (flagCount >= 3) {
                 pincodeData.highRiskCount += 1;
                 locationRiskData[state].highRiskCount += 1;
             }
-            
+
             locationRiskData[state].totalReturns += 1;
             locationRiskData[state].totalFraudScore += fraudScore;
         });
-        
+
         // Calculate averages and format final data
         const riskMapData = Object.values(locationRiskData).map(stateData => {
-            const avgFraudScore = stateData.totalReturns > 0 ? 
+            const avgFraudScore = stateData.totalReturns > 0 ?
                 (stateData.totalFraudScore / stateData.totalReturns).toFixed(1) : 0;
-            
+
             const pincodes = Object.values(stateData.pincodes).map(pincodeData => {
-                const avgFraudScore = pincodeData.returns > 0 ? 
+                const avgFraudScore = pincodeData.returns > 0 ?
                     (pincodeData.totalFraudScore / pincodeData.returns).toFixed(1) : 0;
-                
+
                 // Get average coordinates if multiple locations exist
                 let avgLat = stateData.centerLat;
                 let avgLng = stateData.centerLng;
-                
+
                 if (pincodeData.locations.length > 0) {
                     const sumLat = pincodeData.locations.reduce((sum, loc) => sum + loc.lat, 0);
                     const sumLng = pincodeData.locations.reduce((sum, loc) => sum + loc.lng, 0);
                     avgLat = (sumLat / pincodeData.locations.length).toFixed(6);
                     avgLng = (sumLng / pincodeData.locations.length).toFixed(6);
                 }
-                
+
                 return {
                     pincode: pincodeData.pincode,
                     returns: pincodeData.returns,
                     highRiskCount: pincodeData.highRiskCount,
                     avgFraudScore: parseFloat(avgFraudScore),
-                    riskLevel: pincodeData.highRiskCount >= 3 ? 'high' : 
-                              pincodeData.highRiskCount >= 1 ? 'medium' : 'low',
+                    riskLevel: pincodeData.highRiskCount >= 3 ? 'high' :
+                        pincodeData.highRiskCount >= 1 ? 'medium' : 'low',
                     coordinates: {
                         lat: parseFloat(avgLat),
                         lng: parseFloat(avgLng)
                     }
                 };
             });
-            
+
             return {
                 state: stateData.state,
                 totalReturns: stateData.totalReturns,
                 highRiskCount: stateData.highRiskCount,
                 avgFraudScore: parseFloat(avgFraudScore),
-                riskLevel: stateData.highRiskCount >= 5 ? 'high' : 
-                          stateData.highRiskCount >= 2 ? 'medium' : 'low',
+                riskLevel: stateData.highRiskCount >= 5 ? 'high' :
+                    stateData.highRiskCount >= 2 ? 'medium' : 'low',
                 pincodes: pincodes.filter(p => p.pincode !== 'Unknown')
             };
         });
@@ -449,7 +465,7 @@ app.get('/api/risk-map-data', async (req, res) => {
             success: true,
             data: riskMapData,
             totalStates: riskMapData.length,
-            totalHighRiskLocations: riskMapData.reduce((sum, s) => 
+            totalHighRiskLocations: riskMapData.reduce((sum, s) =>
                 sum + s.pincodes.filter(p => p.riskLevel === 'high').length, 0)
         });
 
@@ -509,13 +525,13 @@ function getPincodeCoordinates(pincode) {
     if (pincode.length !== 6 || !/^\d+$/.test(pincode)) {
         return { lat: 20.5937, lng: 78.9629 }; // Default to center of India
     }
-    
+
     const firstTwoDigits = parseInt(pincode.substring(0, 2));
     const lastFourDigits = parseInt(pincode.substring(2, 6));
-    
+
     // Rough geographic distribution based on pincode zones
     let baseLat, baseLng;
-    
+
     if (firstTwoDigits >= 10 && firstTwoDigits <= 17) {
         // North India
         baseLat = 28 + (lastFourDigits / 10000) * 8;
@@ -537,7 +553,7 @@ function getPincodeCoordinates(pincode) {
         baseLat = 20 + (lastFourDigits / 10000) * 15;
         baseLng = 75 + (lastFourDigits / 10000) * 15;
     }
-    
+
     return {
         lat: parseFloat(baseLat.toFixed(6)),
         lng: parseFloat(baseLng.toFixed(6))
@@ -629,25 +645,46 @@ app.get('/api/returns', async (req, res) => {
 
         console.log('✅ Boltic API response received');
 
-        // API returns structure: { latest_data: { judgments: [...], summary: {...} }, metadata: {...} }
+        // NEW API structure: { response_body: { latest_data: { judgments: [...] }, metadata: {...} } }
         let allJudgments = [];
         let latestSummary = {};
         let metadata = {};
 
-        // Handle direct API response structure (latest_data at root level)
+        // Handle API response structure - check both root level and response_body wrapper
+        let latestData = null;
         if (response.data && response.data.latest_data) {
-            const latestData = response.data.latest_data;
-
-            if (latestData.judgments && Array.isArray(latestData.judgments)) {
-                allJudgments = latestData.judgments;
-            }
-
-            if (latestData.summary) {
-                latestSummary = latestData.summary;
-            }
-
+            // New structure: latest_data at root level
+            latestData = response.data.latest_data;
             if (response.data.metadata) {
                 metadata = response.data.metadata;
+            }
+        } else if (response.data && response.data.response_body && response.data.response_body.latest_data) {
+            // Old structure: nested under response_body
+            latestData = response.data.response_body.latest_data;
+            if (response.data.response_body.metadata) {
+                metadata = response.data.response_body.metadata;
+            }
+        }
+
+        if (latestData) {
+            // Extract judgments - handle multiple API structures
+            if (latestData.judgments && Array.isArray(latestData.judgments) && latestData.judgments.length > 0) {
+                const firstItem = latestData.judgments[0];
+                // Check if judgments contains objects with returns_analysis (old structure)
+                if (firstItem.returns_analysis && Array.isArray(firstItem.returns_analysis)) {
+                    allJudgments = firstItem.returns_analysis;
+                    // Use the batch_summary from the first judgment (old structure)
+                    if (firstItem.batch_summary) {
+                        latestSummary = firstItem.batch_summary;
+                    }
+                } else if (firstItem.shipment_id) {
+                    // New structure: judgments is directly an array of judgment objects
+                    allJudgments = latestData.judgments;
+                }
+            }
+            // Get summary from latest_data.summary (new structure)
+            if (latestData.summary) {
+                latestSummary = latestData.summary;
             }
 
             console.log(`📋 Found ${allJudgments.length} judgments from latest data (record: ${metadata.record_id || 'N/A'})`);
@@ -662,7 +699,8 @@ app.get('/api/returns', async (req, res) => {
                 user_mobile: judgment.user_mobile || 'N/A',
                 shipment_id: judgment.shipment_id,
                 item_name: 'Fashion Item', // Would come from order details in real scenario
-                refund_amount: Math.floor(Math.random() * 2000) + 500, // Mock amount
+                refund_amount: judgment.refund_amount || 0,
+                total_value: judgment.total_value || 0,
                 payment_mode: 'COD',
                 is_cod: judgment.key_flags?.includes('high_cod_dependency') || judgment.key_flags?.includes('exclusive_cod_user'),
                 delivery_city: judgment.delivery_state || 'Unknown',
@@ -682,19 +720,24 @@ app.get('/api/returns', async (req, res) => {
                 prime_score: judgment.prime_score
             }));
 
-            // Calculate summary statistics
+            // Calculate summary statistics - handle both old (decisions.reject) and new (reject_count) structures
+            const rejectCount = latestSummary.reject_count ?? latestSummary.decisions?.reject ?? 0;
+            const approveCount = latestSummary.approve_count ?? latestSummary.decisions?.approve ?? 0;
+            const reviewCount = latestSummary.review_count ?? latestSummary.decisions?.manual_review ?? 0;
+            const totalAnalyzed = latestSummary.total_analyzed || allJudgments.length;
+
             const dashboardSummary = {
-                analyzed_returns: latestSummary.total_analyzed || allJudgments.length,
+                analyzed_returns: totalAnalyzed,
                 total_value: returns.reduce((sum, r) => sum + r.refund_amount, 0),
-                avg_return_rate: latestSummary.total_analyzed ? Math.round((latestSummary.reject_count / latestSummary.total_analyzed) * 100) : 0,
+                avg_return_rate: totalAnalyzed > 0 ? Math.round((rejectCount / totalAnalyzed) * 100) : 0,
                 avg_fraud_score: latestSummary.avg_fraud_score || 0,
                 exclusive_cod_users: returns.filter(r =>
-                    r.pattern_flags.includes('exclusive_cod_user')
+                    r.pattern_flags.includes('exclusive_cod_user') || r.pattern_flags.includes('exclusive_cod')
                 ).length,
                 high_risk_count: returns.filter(r => r.flag_count >= 3).length,
-                reject_count: latestSummary.reject_count || 0,
-                approve_count: latestSummary.approve_count || 0,
-                review_count: latestSummary.review_count || 0
+                reject_count: rejectCount,
+                approve_count: approveCount,
+                review_count: reviewCount
             };
 
             return res.json({
