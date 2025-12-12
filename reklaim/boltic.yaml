@@ -1,0 +1,10 @@
+app: bolticmasterlist
+primary_region: asia-south1
+
+# Use the repo's Dockerfile to build the deployable image
+build:
+  dockerfile: Dockerfile
+
+# Runtime env (non-secrets only)
+env:
+  NODE_ENV: "production"
