@@ -6,6 +6,7 @@ const path = require("path");
 const sqlite3 = require('sqlite3').verbose();
 const serveStatic = require("serve-static");
 const { readFileSync } = require('fs');
+const PDFDocument = require('pdfkit');
 const { setupFdk } = require("@gofynd/fdk-extension-javascript/express");
 const { SQLiteStorage } = require("@gofynd/fdk-extension-javascript/express/storage");
 const sqliteInstance = new sqlite3.Database('session_storage.db');
@@ -335,26 +336,31 @@ app.get('/api/risk-map-data', async (req, res) => {
 
         let allJudgments = [];
 
-        // Handle API response structure - check both root level and response_body wrapper
-        let latestData = null;
-        if (response.data && response.data.latest_data) {
-            // New structure: latest_data at root level
-            latestData = response.data.latest_data;
-        } else if (response.data && response.data.response_body && response.data.response_body.latest_data) {
-            // Old structure: nested under response_body
-            latestData = response.data.response_body.latest_data;
-        }
+        // Handle API response structure - multiple formats supported
+        // 1. NEW: Direct array of judgments at root level: [{ shipment_id: ... }, ...]
+        // 2. OLD: Wrapped in latest_data: { latest_data: { judgments: [...] } }
+        // 3. LEGACY: Wrapped in response_body: { response_body: { latest_data: { judgments: [...] } } }
 
-        if (latestData) {
-            // Extract judgments - handle multiple API structures
-            if (latestData.judgments && Array.isArray(latestData.judgments) && latestData.judgments.length > 0) {
-                const firstItem = latestData.judgments[0];
-                // Check if judgments contains objects with returns_analysis (old structure)
-                if (firstItem.returns_analysis && Array.isArray(firstItem.returns_analysis)) {
-                    allJudgments = firstItem.returns_analysis;
-                } else if (firstItem.shipment_id) {
-                    // New structure: judgments is directly an array of judgment objects
-                    allJudgments = latestData.judgments;
+        if (Array.isArray(response.data) && response.data.length > 0 && response.data[0].shipment_id) {
+            // New simplified structure: direct array of judgment objects
+            allJudgments = response.data;
+        } else {
+            // Try wrapped structures
+            let latestData = null;
+            if (response.data && response.data.latest_data) {
+                latestData = response.data.latest_data;
+            } else if (response.data && response.data.response_body && response.data.response_body.latest_data) {
+                latestData = response.data.response_body.latest_data;
+            }
+
+            if (latestData) {
+                if (latestData.judgments && Array.isArray(latestData.judgments) && latestData.judgments.length > 0) {
+                    const firstItem = latestData.judgments[0];
+                    if (firstItem.returns_analysis && Array.isArray(firstItem.returns_analysis)) {
+                        allJudgments = firstItem.returns_analysis;
+                    } else if (firstItem.shipment_id) {
+                        allJudgments = latestData.judgments;
+                    }
                 }
             }
         }
@@ -645,51 +651,53 @@ app.get('/api/returns', async (req, res) => {
 
         console.log('✅ Boltic API response received');
 
-        // NEW API structure: { response_body: { latest_data: { judgments: [...] }, metadata: {...} } }
+        // Handle API response structure - multiple formats supported
+        // 1. NEW: Direct array of judgments at root level: [{ shipment_id: ... }, ...]
+        // 2. OLD: Wrapped in latest_data: { latest_data: { judgments: [...], summary: {...} }, metadata: {...} }
+        // 3. LEGACY: Wrapped in response_body: { response_body: { latest_data: {...} } }
         let allJudgments = [];
         let latestSummary = {};
         let metadata = {};
 
-        // Handle API response structure - check both root level and response_body wrapper
-        let latestData = null;
-        if (response.data && response.data.latest_data) {
-            // New structure: latest_data at root level
-            latestData = response.data.latest_data;
-            if (response.data.metadata) {
-                metadata = response.data.metadata;
+        if (Array.isArray(response.data) && response.data.length > 0 && response.data[0].shipment_id) {
+            // New simplified structure: direct array of judgment objects
+            allJudgments = response.data;
+            console.log(`📋 Found ${allJudgments.length} judgments (direct array format)`);
+        } else {
+            // Try wrapped structures
+            let latestData = null;
+            if (response.data && response.data.latest_data) {
+                latestData = response.data.latest_data;
+                if (response.data.metadata) {
+                    metadata = response.data.metadata;
+                }
+            } else if (response.data && response.data.response_body && response.data.response_body.latest_data) {
+                latestData = response.data.response_body.latest_data;
+                if (response.data.response_body.metadata) {
+                    metadata = response.data.response_body.metadata;
+                }
             }
-        } else if (response.data && response.data.response_body && response.data.response_body.latest_data) {
-            // Old structure: nested under response_body
-            latestData = response.data.response_body.latest_data;
-            if (response.data.response_body.metadata) {
-                metadata = response.data.response_body.metadata;
+
+            if (latestData) {
+                if (latestData.judgments && Array.isArray(latestData.judgments) && latestData.judgments.length > 0) {
+                    const firstItem = latestData.judgments[0];
+                    if (firstItem.returns_analysis && Array.isArray(firstItem.returns_analysis)) {
+                        allJudgments = firstItem.returns_analysis;
+                        if (firstItem.batch_summary) {
+                            latestSummary = firstItem.batch_summary;
+                        }
+                    } else if (firstItem.shipment_id) {
+                        allJudgments = latestData.judgments;
+                    }
+                }
+                if (latestData.summary) {
+                    latestSummary = latestData.summary;
+                }
+                console.log(`📋 Found ${allJudgments.length} judgments from wrapped structure (record: ${metadata.record_id || 'N/A'})`);
             }
         }
 
-        if (latestData) {
-            // Extract judgments - handle multiple API structures
-            if (latestData.judgments && Array.isArray(latestData.judgments) && latestData.judgments.length > 0) {
-                const firstItem = latestData.judgments[0];
-                // Check if judgments contains objects with returns_analysis (old structure)
-                if (firstItem.returns_analysis && Array.isArray(firstItem.returns_analysis)) {
-                    allJudgments = firstItem.returns_analysis;
-                    // Use the batch_summary from the first judgment (old structure)
-                    if (firstItem.batch_summary) {
-                        latestSummary = firstItem.batch_summary;
-                    }
-                } else if (firstItem.shipment_id) {
-                    // New structure: judgments is directly an array of judgment objects
-                    allJudgments = latestData.judgments;
-                }
-            }
-            // Get summary from latest_data.summary (new structure)
-            if (latestData.summary) {
-                latestSummary = latestData.summary;
-            }
-
-            console.log(`📋 Found ${allJudgments.length} judgments from latest data (record: ${metadata.record_id || 'N/A'})`);
-
-            // Transform judgments to dashboard format
+        if (allJudgments.length > 0) {
             const returns = allJudgments.map((judgment, index) => ({
                 id: judgment.shipment_id || `return-${index}`,
                 order_id: judgment.order_id,
@@ -720,17 +728,26 @@ app.get('/api/returns', async (req, res) => {
                 prime_score: judgment.prime_score
             }));
 
-            // Calculate summary statistics - handle both old (decisions.reject) and new (reject_count) structures
-            const rejectCount = latestSummary.reject_count ?? latestSummary.decisions?.reject ?? 0;
-            const approveCount = latestSummary.approve_count ?? latestSummary.decisions?.approve ?? 0;
-            const reviewCount = latestSummary.review_count ?? latestSummary.decisions?.manual_review ?? 0;
+            // Calculate summary statistics
+            // For direct array format (no summary), compute from returns data
+            // For wrapped formats, use provided summary values
+            const computedRejectCount = returns.filter(r => r.decision === 'reject').length;
+            const computedApproveCount = returns.filter(r => r.decision === 'approve').length;
+            const computedReviewCount = returns.filter(r => r.decision === 'manual_review').length;
+            const computedAvgFraudScore = returns.length > 0
+                ? (returns.reduce((sum, r) => sum + (r.fraud_score || 0), 0) / returns.length).toFixed(1)
+                : 0;
+
+            const rejectCount = latestSummary.reject_count ?? latestSummary.decisions?.reject ?? computedRejectCount;
+            const approveCount = latestSummary.approve_count ?? latestSummary.decisions?.approve ?? computedApproveCount;
+            const reviewCount = latestSummary.review_count ?? latestSummary.decisions?.manual_review ?? computedReviewCount;
             const totalAnalyzed = latestSummary.total_analyzed || allJudgments.length;
 
             const dashboardSummary = {
                 analyzed_returns: totalAnalyzed,
                 total_value: returns.reduce((sum, r) => sum + r.refund_amount, 0),
                 avg_return_rate: totalAnalyzed > 0 ? Math.round((rejectCount / totalAnalyzed) * 100) : 0,
-                avg_fraud_score: latestSummary.avg_fraud_score || 0,
+                avg_fraud_score: latestSummary.avg_fraud_score || parseFloat(computedAvgFraudScore),
                 exclusive_cod_users: returns.filter(r =>
                     r.pattern_flags.includes('exclusive_cod_user') || r.pattern_flags.includes('exclusive_cod')
                 ).length,
@@ -842,6 +859,280 @@ app.get('/api/returns', async (req, res) => {
             returns: [],
             error: 'Unable to fetch latest data'
         });
+    }
+});
+
+// PDF Report Generation Endpoint
+app.get('/api/generate-report', async (req, res) => {
+    try {
+        const bolticWorkflowUrl = 'https://asia-south1.workflow.boltic.app/fc2e653e-295d-41a9-a2c7-d9b3dfbdb55f';
+
+        console.log('📄 Generating PDF report...');
+
+        const response = await axios.get(bolticWorkflowUrl, {
+            timeout: 50000,
+            headers: { 'Accept': 'application/json' }
+        });
+
+        // Parse data - supporting multiple formats
+        let allJudgments = [];
+        let latestSummary = {};
+
+        if (Array.isArray(response.data) && response.data.length > 0 && response.data[0].shipment_id) {
+            allJudgments = response.data;
+        } else {
+            let latestData = null;
+            if (response.data && response.data.latest_data) {
+                latestData = response.data.latest_data;
+            } else if (response.data && response.data.response_body && response.data.response_body.latest_data) {
+                latestData = response.data.response_body.latest_data;
+            }
+
+            if (latestData) {
+                if (latestData.judgments && Array.isArray(latestData.judgments) && latestData.judgments.length > 0) {
+                    const firstItem = latestData.judgments[0];
+                    if (firstItem.returns_analysis && Array.isArray(firstItem.returns_analysis)) {
+                        allJudgments = firstItem.returns_analysis;
+                        if (firstItem.batch_summary) {
+                            latestSummary = firstItem.batch_summary;
+                        }
+                    } else if (firstItem.shipment_id) {
+                        allJudgments = latestData.judgments;
+                    }
+                }
+                if (latestData.summary) {
+                    latestSummary = latestData.summary;
+                }
+            }
+        }
+
+        // Transform data for report
+        const returns = allJudgments.map((judgment, index) => ({
+            id: judgment.shipment_id || `return-${index}`,
+            user_name: judgment.user_name || 'Anonymous User',
+            user_mobile: judgment.user_mobile || 'N/A',
+            shipment_id: judgment.shipment_id,
+            refund_amount: judgment.refund_amount || 0,
+            delivery_city: judgment.delivery_state || 'Unknown',
+            delivery_pincode: judgment.delivery_pincode || 'N/A',
+            reason_text: judgment.explanation || 'Return requested',
+            fraud_score: judgment.fraud_score || 0,
+            decision: judgment.decision || 'pending',
+            flag_count: judgment.key_flags?.length || 0,
+            pattern_flags: judgment.key_flags || [],
+            segment: judgment.segment || 'N/A',
+            recommended_action: judgment.recommended_action || 'N/A'
+        }));
+
+        // Calculate summary
+        const rejectCount = returns.filter(r => r.decision === 'reject').length;
+        const approveCount = returns.filter(r => r.decision === 'approve').length;
+        const reviewCount = returns.filter(r => r.decision === 'manual_review').length;
+        const highRiskCount = returns.filter(r => r.flag_count >= 3).length;
+        const totalValue = returns.reduce((sum, r) => sum + r.refund_amount, 0);
+        const avgFraudScore = returns.length > 0
+            ? (returns.reduce((sum, r) => sum + r.fraud_score, 0) / returns.length).toFixed(1)
+            : 0;
+
+        // Create PDF
+        const doc = new PDFDocument({ margin: 50, size: 'A4' });
+
+        // Set response headers
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=returns-report-${new Date().toISOString().split('T')[0]}.pdf`);
+
+        doc.pipe(res);
+
+        // Color palette
+        const primaryColor = '#6366f1';
+        const dangerColor = '#ef4444';
+        const warningColor = '#f59e0b';
+        const successColor = '#22c55e';
+        const textColor = '#1f2937';
+        const mutedColor = '#6b7280';
+
+        // Header
+        doc.fillColor(primaryColor)
+            .fontSize(28)
+            .font('Helvetica-Bold')
+            .text('Returns Intelligence Report', { align: 'center' });
+
+        doc.moveDown(0.5);
+        doc.fillColor(mutedColor)
+            .fontSize(12)
+            .font('Helvetica')
+            .text(`Generated on ${new Date().toLocaleString('en-IN', { dateStyle: 'full', timeStyle: 'short' })}`, { align: 'center' });
+
+        doc.moveDown(1.5);
+
+        // Summary Section
+        doc.fillColor(textColor)
+            .fontSize(18)
+            .font('Helvetica-Bold')
+            .text('Executive Summary');
+
+        doc.moveDown(0.5);
+
+        // Summary box
+        const summaryY = doc.y;
+        doc.fillColor('#f8fafc')
+            .roundedRect(50, summaryY, 495, 120, 8)
+            .fill();
+
+        doc.fillColor(textColor)
+            .fontSize(11)
+            .font('Helvetica');
+
+        const col1X = 70;
+        const col2X = 220;
+        const col3X = 370;
+
+        // Row 1
+        doc.y = summaryY + 20;
+        doc.fillColor(mutedColor).text('Total Returns Analyzed', col1X, doc.y);
+        doc.fillColor(primaryColor).font('Helvetica-Bold').fontSize(20).text(returns.length.toString(), col1X, doc.y + 15);
+
+        doc.fillColor(mutedColor).font('Helvetica').fontSize(11).text('Total Value at Risk', col2X, summaryY + 20);
+        doc.fillColor(successColor).font('Helvetica-Bold').fontSize(20).text(`₹${totalValue.toLocaleString('en-IN')}`, col2X, summaryY + 35);
+
+        doc.fillColor(mutedColor).font('Helvetica').fontSize(11).text('Avg Fraud Score', col3X, summaryY + 20);
+        doc.fillColor(warningColor).font('Helvetica-Bold').fontSize(20).text(`${avgFraudScore}/10`, col3X, summaryY + 35);
+
+        // Row 2
+        doc.fillColor(mutedColor).font('Helvetica').fontSize(11).text('High Risk Cases', col1X, summaryY + 70);
+        doc.fillColor(dangerColor).font('Helvetica-Bold').fontSize(20).text(highRiskCount.toString(), col1X, summaryY + 85);
+
+        doc.fillColor(mutedColor).font('Helvetica').fontSize(11).text('Rejection Rate', col2X, summaryY + 70);
+        doc.fillColor(dangerColor).font('Helvetica-Bold').fontSize(20).text(`${returns.length > 0 ? Math.round((rejectCount / returns.length) * 100) : 0}%`, col2X, summaryY + 85);
+
+        doc.fillColor(mutedColor).font('Helvetica').fontSize(11).text('Approved / Review / Reject', col3X, summaryY + 70);
+        doc.fillColor(textColor).font('Helvetica-Bold').fontSize(14).text(`${approveCount} / ${reviewCount} / ${rejectCount}`, col3X, summaryY + 85);
+
+        doc.y = summaryY + 140;
+        doc.moveDown(1);
+
+        // Returns Table Section
+        doc.fillColor(textColor)
+            .fontSize(18)
+            .font('Helvetica-Bold')
+            .text('Returns Details');
+
+        doc.moveDown(0.5);
+
+        // Table headers
+        const tableTop = doc.y;
+        const tableHeaders = ['Customer', 'Shipment ID', 'Amount', 'Location', 'Risk', 'Decision'];
+        const colWidths = [90, 90, 70, 80, 50, 70];
+        let xPos = 50;
+
+        doc.fillColor('#e2e8f0')
+            .rect(50, tableTop, 495, 25)
+            .fill();
+
+        doc.fillColor(textColor)
+            .fontSize(9)
+            .font('Helvetica-Bold');
+
+        tableHeaders.forEach((header, i) => {
+            doc.text(header, xPos + 5, tableTop + 8, { width: colWidths[i], align: 'left' });
+            xPos += colWidths[i];
+        });
+
+        // Table rows
+        let rowY = tableTop + 25;
+        const maxRowsPerPage = 20;
+        let rowCount = 0;
+
+        returns.forEach((item, index) => {
+            if (rowCount >= maxRowsPerPage) {
+                doc.addPage();
+                rowY = 50;
+                rowCount = 0;
+
+                // Repeat headers on new page
+                xPos = 50;
+                doc.fillColor('#e2e8f0')
+                    .rect(50, rowY, 495, 25)
+                    .fill();
+
+                doc.fillColor(textColor)
+                    .fontSize(9)
+                    .font('Helvetica-Bold');
+
+                tableHeaders.forEach((header, i) => {
+                    doc.text(header, xPos + 5, rowY + 8, { width: colWidths[i], align: 'left' });
+                    xPos += colWidths[i];
+                });
+
+                rowY += 25;
+            }
+
+            // Alternate row background
+            if (index % 2 === 0) {
+                doc.fillColor('#f8fafc')
+                    .rect(50, rowY, 495, 22)
+                    .fill();
+            }
+
+            // High risk highlight
+            if (item.flag_count >= 3) {
+                doc.fillColor('#fef2f2')
+                    .rect(50, rowY, 495, 22)
+                    .fill();
+            }
+
+            xPos = 50;
+            doc.fillColor(textColor)
+                .fontSize(8)
+                .font('Helvetica');
+
+            // Customer
+            doc.text(item.user_name.substring(0, 15), xPos + 5, rowY + 6, { width: colWidths[0] - 10 });
+            xPos += colWidths[0];
+
+            // Shipment ID
+            doc.text(item.shipment_id ? item.shipment_id.substring(0, 12) : 'N/A', xPos + 5, rowY + 6, { width: colWidths[1] - 10 });
+            xPos += colWidths[1];
+
+            // Amount
+            doc.text(`₹${item.refund_amount.toLocaleString('en-IN')}`, xPos + 5, rowY + 6, { width: colWidths[2] - 10 });
+            xPos += colWidths[2];
+
+            // Location
+            doc.text(`${item.delivery_city.substring(0, 10)}`, xPos + 5, rowY + 6, { width: colWidths[3] - 10 });
+            xPos += colWidths[3];
+
+            // Risk
+            const riskLevel = item.flag_count >= 3 ? 'High' : item.flag_count >= 1 ? 'Med' : 'Low';
+            const riskColor = item.flag_count >= 3 ? dangerColor : item.flag_count >= 1 ? warningColor : successColor;
+            doc.fillColor(riskColor)
+                .font('Helvetica-Bold')
+                .text(riskLevel, xPos + 5, rowY + 6, { width: colWidths[4] - 10 });
+            xPos += colWidths[4];
+
+            // Decision
+            const decisionColor = item.decision === 'reject' ? dangerColor :
+                item.decision === 'approve' ? successColor : warningColor;
+            doc.fillColor(decisionColor)
+                .text(item.decision.charAt(0).toUpperCase() + item.decision.slice(1), xPos + 5, rowY + 6, { width: colWidths[5] - 10 });
+
+            rowY += 22;
+            rowCount++;
+        });
+
+        // Footer
+        doc.moveDown(2);
+        doc.fillColor(mutedColor)
+            .fontSize(10)
+            .font('Helvetica')
+            .text('This report is auto-generated by Reklaim Returns Intelligence System.', 50, doc.page.height - 50, { align: 'center' });
+
+        doc.end();
+        console.log('✅ PDF report generated successfully');
+
+    } catch (err) {
+        console.error('❌ PDF generation error:', err.message);
+        res.status(500).json({ success: false, error: 'Failed to generate report' });
     }
 });
 

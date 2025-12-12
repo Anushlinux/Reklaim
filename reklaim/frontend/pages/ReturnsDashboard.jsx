@@ -238,6 +238,7 @@ export const ReturnsDashboard = () => {
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
   const [metadata, setMetadata] = useState(null);
   const [showMapWidget, setShowMapWidget] = useState(false);
+  const [reportLoading, setReportLoading] = useState(false);
 
   const { application_id, company_id } = useParams();
   const navigate = useNavigate();
@@ -362,6 +363,31 @@ export const ReturnsDashboard = () => {
       : `/company/${company_id}/settings`;
     navigate(basePath);
   };
+
+  const generateReport = useCallback(async () => {
+    setReportLoading(true);
+    try {
+      const response = await axios.get(urlJoin(EXAMPLE_MAIN_URL, "/api/generate-report"), {
+        responseType: 'blob',
+        timeout: 60000
+      });
+
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `returns-report-${new Date().toISOString().split('T')[0]}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("Report generation error:", e.message || e);
+      alert("Failed to generate report. Please try again.");
+    } finally {
+      setReportLoading(false);
+    }
+  }, []);
 
   return (
     <div className="dashboard-container">
@@ -781,6 +807,66 @@ export const ReturnsDashboard = () => {
               </table>
             </div>
           )}
+        </div>
+      </section>
+
+      {/* Get Reports Section */}
+      <section className="dashboard-section" style={{ paddingBottom: '40px' }}>
+        <div className="report-section" style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: '24px',
+          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)',
+          borderRadius: '12px',
+          border: '1px solid rgba(99, 102, 241, 0.2)'
+        }}>
+          <div style={{ textAlign: 'center' }}>
+            <h3 style={{
+              margin: '0 0 8px 0',
+              color: '#1f2937',
+              fontSize: '18px',
+              fontWeight: '600'
+            }}>
+              📊 Export Returns Report
+            </h3>
+            <p style={{
+              margin: '0 0 16px 0',
+              color: '#6b7280',
+              fontSize: '14px'
+            }}>
+              Download a comprehensive PDF report with all returns data, risk analysis, and recommendations.
+            </p>
+            <button
+              className="btn btn-primary"
+              onClick={generateReport}
+              disabled={reportLoading}
+              type="button"
+              style={{
+                padding: '12px 32px',
+                fontSize: '16px',
+                fontWeight: '600',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                boxShadow: '0 4px 14px rgba(99, 102, 241, 0.35)'
+              }}
+            >
+              {reportLoading ? (
+                <>
+                  <span className="spin" aria-hidden="true">
+                    <Icon name="refresh" />
+                  </span>
+                  Generating...
+                </>
+              ) : (
+                <>
+                  📄 Get Reports
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </section>
 
